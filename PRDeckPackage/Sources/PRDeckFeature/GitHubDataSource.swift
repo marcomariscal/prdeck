@@ -69,7 +69,9 @@ public struct GitHubDataSource: Sendable {
                     author: node.author.map { .init(login: $0.login, avatarUrl: $0.avatarUrl) },
                     repository: .init(
                         nameWithOwner: node.repository.nameWithOwner,
-                        url: node.repository.url
+                        url: node.repository.url,
+                        ownerLogin: node.repository.owner.login,
+                        ownerAvatarUrl: node.repository.owner.avatarUrl
                     ),
                     statusCheckRollup: node.statusCheckRollup,
                     isReviewRequestedToMe: reviewRequestedToMe
@@ -94,7 +96,7 @@ private extension GitHubDataSource {
             mergeable
             reviewDecision
             author { login avatarUrl }
-            repository { nameWithOwner url }
+            repository { nameWithOwner url owner { login avatarUrl } }
             commits(last: 1) {
               nodes {
                 commit {
@@ -170,6 +172,12 @@ private struct AuthorNode: Decodable {
 private struct RepoNode: Decodable {
     let nameWithOwner: String
     let url: URL
+    let owner: RepoOwnerNode
+}
+
+private struct RepoOwnerNode: Decodable {
+    let login: String
+    let avatarUrl: URL?
 }
 
 private struct CommitsNode: Decodable {

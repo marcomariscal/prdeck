@@ -7,9 +7,12 @@ struct PRRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("\(item.repository.nameWithOwner) #\(item.number)")
-                    .font(.system(size: 12 * zoomScale))
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    repoAvatar
+                    Text("\(item.repository.nameWithOwner) #\(item.number)")
+                        .font(.system(size: 12 * zoomScale))
+                        .foregroundStyle(.secondary)
+                }
 
                 Spacer()
 
@@ -84,6 +87,30 @@ struct PRRowView: View {
                 .frame(width: 22 * zoomScale, height: 22 * zoomScale)
                 .clipShape(Circle())
                 .overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1))
+                .accessibilityHidden(true)
+        }
+    }
+
+    @ViewBuilder
+    private var repoAvatar: some View {
+        if let url = item.repository.ownerAvatarUrl {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    Color.gray.opacity(0.25)
+                }
+            }
+            .frame(width: 16 * zoomScale, height: 16 * zoomScale)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1))
+            .accessibilityLabel(Text(item.repository.ownerLogin ?? "Repository owner"))
+        } else {
+            Color.clear
+                .frame(width: 16 * zoomScale, height: 16 * zoomScale)
                 .accessibilityHidden(true)
         }
     }

@@ -14,10 +14,19 @@ public struct PRItem: Identifiable, Codable, Hashable, Sendable {
     public struct Repository: Codable, Hashable, Sendable {
         public let nameWithOwner: String
         public let url: URL
+        public let ownerLogin: String?
+        public let ownerAvatarUrl: URL?
 
-        public init(nameWithOwner: String, url: URL) {
+        public init(
+            nameWithOwner: String,
+            url: URL,
+            ownerLogin: String? = nil,
+            ownerAvatarUrl: URL? = nil
+        ) {
             self.nameWithOwner = nameWithOwner
             self.url = url
+            self.ownerLogin = ownerLogin
+            self.ownerAvatarUrl = ownerAvatarUrl
         }
     }
 

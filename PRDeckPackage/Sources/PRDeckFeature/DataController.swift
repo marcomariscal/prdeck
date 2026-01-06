@@ -4,6 +4,7 @@ import Foundation
 public final class DataController: ObservableObject {
     @Published public private(set) var items: [PRItem] = []
     @Published public private(set) var isRefreshing = false
+    @Published public private(set) var lastSuccessfulRefreshAt: Date?
     @Published public var lastError: String?
     @Published public var selectedId: PRItem.ID?
     @Published public private(set) var knownRepos: [String] = []
@@ -69,6 +70,7 @@ public final class DataController: ObservableObject {
             let ordered = applyStableOrdering(fetched)
             items = ordered
             snapshotStore.saveSnapshot(ordered)
+            lastSuccessfulRefreshAt = .now
 
             if let selectedId, !ordered.contains(where: { $0.id == selectedId }) {
                 self.selectedId = nil

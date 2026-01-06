@@ -18,7 +18,6 @@ struct RootView: View {
     @State private var repoFilterSearchText = ""
     @State private var toast: Toast?
     @State private var measuredHeights: [String: CGFloat] = [:]
-    @State private var hoveredAttentionSegment: AttentionSegment?
 
     private enum RepoFilterMode: String {
         case exclude
@@ -28,11 +27,6 @@ struct RootView: View {
     private struct Toast: Identifiable {
         let id = UUID()
         let message: String
-    }
-
-    private enum AttentionSegment: Hashable {
-        case attention
-        case all
     }
 
     private var repoFilterMode: RepoFilterMode {
@@ -172,6 +166,45 @@ struct RootView: View {
         }
     }
 
+    private var repoFilterActiveCount: Int {
+        switch repoFilterMode {
+        case .exclude:
+            excludedRepoSet.count
+        case .include:
+            includedRepoSet.count
+        }
+    }
+
+    private var repoFilterHelp: String {
+        guard isRepoFilterActive else { return "Filter repositories" }
+        let modeLabel = repoFilterMode == .exclude ? "excluded" : "included"
+        return "Filter repositories (\(repoFilterActiveCount) \(modeLabel))"
+    }
+    
+    private var filterTokens: [HeaderBarView<AnyView>.FilterToken] {
+        var tokens: [HeaderBarView<AnyView>.FilterToken] = []
+        
+        // Repo filter token
+        if isRepoFilterActive {
+            let count = repoFilterActiveCount
+            let mode = repoFilterMode == .exclude ? "excluded" : "included"
+            let label = "Repo: \(count) \(mode)"
+            
+            tokens.append(.init(
+                id: "repo-filter",
+                label: label,
+                onRemove: {
+                    switch repoFilterMode {
+                    case .exclude: setExcludedRepoSet([])
+                    case .include: setIncludedRepoSet([])
+                    }
+                }
+            ))
+        }
+        
+        return tokens
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             topBar
@@ -246,153 +279,24 @@ struct RootView: View {
     }
 
     private var topBar: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 6) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 13 * computedZoomScale))
-                    .foregroundStyle(theme.textDisabled)
-
-                TextField("Search", text: $searchText)
-                    .textFieldStyle(.plain)
-                    .focused($searchFocused)
-                    .font(.system(size: 13 * computedZoomScale))
-                    .foregroundStyle(theme.textPrimary)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(theme.elevated)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(searchFocused ? theme.focusRing : theme.border, lineWidth: searchFocused ? 1.5 : 1)
-                    )
-            )
-            .frame(maxWidth: 300)
-
-            Spacer()
-
-            attentionToggle
-
-            Spacer()
-
-            Button {
-                isRepoFilterPresented = true
-            } label: {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.system(size: 15 * computedZoomScale))
-                    .foregroundStyle(isRepoFilterActive ? theme.textPrimary : theme.textSecondary)
-            }
-            .buttonStyle(.plain)
-            .prdeckInteractiveCursor()
-            .popover(isPresented: $isRepoFilterPresented, arrowEdge: .top) {
-                repoFilterPopover
-            }
-            .help("Filter repositories")
-
-            Button {
-                Task { await dataController.refresh(reloadRepos: true) }
-            } label: {
-                ZStack {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.system(size: 14 * computedZoomScale))
-                        .foregroundStyle(theme.textSecondary)
-                        .opacity(dataController.isRefreshing ? 0 : 1)
-
-                    ProgressView()
-                        .controlSize(.small)
-                        .opacity(dataController.isRefreshing ? 1 : 0)
-                }
-                .frame(width: 18 * computedZoomScale, height: 18 * computedZoomScale)
-            }
-            .buttonStyle(.plain)
-            .prdeckInteractiveCursor()
-            .disabled(dataController.isRefreshing)
-            .help(dataController.isRefreshing ? "Refreshing…" : "Refresh")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(theme.surface)
-    }
-
-    private var attentionToggle: some View {
-        HStack(spacing: 0) {
-            attentionToggleButton(
-                segment: .attention,
-                title: "Needs attention",
-                count: needsAttentionCount,
-                isOn: !showAll,
-                action: { showAll = false }
-            )
-
-            attentionToggleButton(
-                segment: .all,
-                title: "All",
-                count: allCount,
-                isOn: showAll,
-                action: { showAll = true }
-            )
-        }
-        .padding(2)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(theme.elevated)
+        HeaderBarView(
+            theme: theme,
+            zoomScale: computedZoomScale,
+            searchText: $searchText,
+            searchFocused: $searchFocused,
+            needsAttentionCount: needsAttentionCount,
+            allCount: allCount,
+            showAll: $showAll,
+            isRepoFilterPresented: $isRepoFilterPresented,
+            isRepoFilterActive: isRepoFilterActive,
+            repoFilterActiveCount: repoFilterActiveCount,
+            repoFilterHelp: repoFilterHelp,
+            repoFilterPopover: { AnyView(repoFilterPopover) },
+            filterTokens: filterTokens,
+            isRefreshing: dataController.isRefreshing,
+            lastSuccessfulRefreshAt: dataController.lastSuccessfulRefreshAt,
+            onRefresh: { Task { await dataController.refresh(reloadRepos: true) } }
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(theme.border, lineWidth: 1)
-        )
-        .frame(width: 280)
-        .animation(.easeInOut(duration: 0.14), value: showAll)
-        .animation(.easeInOut(duration: 0.10), value: hoveredAttentionSegment)
-    }
-
-    private func attentionToggleButton(
-        segment: AttentionSegment,
-        title: String,
-        count: Int,
-        isOn: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        let isHovered = hoveredAttentionSegment == segment
-
-        return Button(action: action) {
-            (
-                Text(title)
-                    .foregroundStyle(isOn ? theme.textPrimary : theme.textSecondary)
-                +
-                Text(" (\(count))")
-                    .monospacedDigit()
-                    .foregroundStyle(isOn ? theme.textSecondary : theme.textTertiary)
-            )
-            .font(.system(size: 11.25 * computedZoomScale, weight: .semibold))
-            .lineLimit(1)
-            .minimumScaleFactor(0.78)
-            .allowsTightening(true)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(isOn ? theme.rowSelected : (isHovered ? theme.rowHover : .clear))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(isOn ? theme.focusRing.opacity(0.8) : .clear, lineWidth: 1)
-                    )
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .prdeckInteractiveCursor()
-        .onHover { isHovering in
-            if isHovering {
-                hoveredAttentionSegment = segment
-            } else if hoveredAttentionSegment == segment {
-                hoveredAttentionSegment = nil
-            }
-        }
-        .accessibilityLabel(Text("\(title), \(count)"))
-        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -443,6 +347,9 @@ struct RootView: View {
 
         if hasCommandOnly {
             switch key {
+            case "f":
+                searchFocused = true
+                return true
             case "=", "+":
                 zoomStep = min(6, zoomStep + 1)
                 return true
@@ -451,6 +358,9 @@ struct RootView: View {
                 return true
             case "0":
                 zoomStep = 0
+                return true
+            case "r":
+                Task { await dataController.refresh(reloadRepos: true) }
                 return true
             default:
                 break

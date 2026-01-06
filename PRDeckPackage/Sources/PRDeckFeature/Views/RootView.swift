@@ -186,7 +186,7 @@ struct RootView: View {
         .padding(.top, titlebarHeight)
         .background(alignment: .top) {
             Rectangle()
-                .fill(theme.surface2)
+                .fill(theme.surface)
                 .frame(height: titlebarHeight)
         }
         .background(theme.bg)
@@ -308,7 +308,7 @@ struct RootView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(theme.surface2)
+        .background(theme.surface)
     }
 
     private var attentionToggle: some View {

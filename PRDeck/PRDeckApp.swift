@@ -1,3 +1,4 @@
+import PRDeckFeature
 import SwiftUI
 
 @main
@@ -6,7 +7,7 @@ struct PRDeckApp: App {
 
     var body: some Scene {
         Settings {
-            EmptyView()
+            SettingsView()
         }
     }
 }

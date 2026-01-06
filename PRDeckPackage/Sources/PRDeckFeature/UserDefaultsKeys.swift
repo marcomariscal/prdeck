@@ -4,4 +4,6 @@ public enum PRDeckDefaultsKey {
     public static let includedRepos = "includedRepos"
     public static let repoFilterMode = "repoFilterMode"
     public static let zoomStep = "zoomStep"
+    public static let showRepoAvatar = "showRepoAvatar"
+    public static let themePalette = "themePalette"
 }

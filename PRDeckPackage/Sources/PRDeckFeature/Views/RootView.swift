@@ -9,6 +9,8 @@ struct RootView: View {
     @AppStorage(PRDeckDefaultsKey.excludedRepos) private var excludedRepos = ""
     @AppStorage(PRDeckDefaultsKey.includedRepos) private var includedRepos = ""
     @AppStorage(PRDeckDefaultsKey.zoomStep) private var zoomStep = 0
+    @AppStorage(PRDeckDefaultsKey.showRepoAvatar) private var showRepoAvatar = true
+    @AppStorage(PRDeckDefaultsKey.themePalette) private var themePaletteRaw = PRDeckPalette.appleBetter.rawValue
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
     @State private var keyMonitor: KeyEventMonitor?
@@ -34,6 +36,14 @@ struct RootView: View {
     private var computedZoomScale: CGFloat {
         let clamped = max(-3, min(6, zoomStep))
         return pow(1.12, CGFloat(clamped))
+    }
+
+    private var themePalette: PRDeckPalette {
+        PRDeckPalette(rawValue: themePaletteRaw) ?? .appleBetter
+    }
+
+    private var theme: PRDeckTheme {
+        PRDeckTheme(palette: themePalette)
     }
 
     private var excludedRepoSet: Set<String> {
@@ -147,8 +157,9 @@ struct RootView: View {
         VStack(spacing: 0) {
             topBar
                 .prdeckMeasureHeight("topBar")
-            Divider()
-                .opacity(0.1)
+            Rectangle()
+                .fill(theme.divider)
+                .frame(height: 1)
 
             if let error = dataController.lastError {
                 errorBanner(error)
@@ -157,14 +168,17 @@ struct RootView: View {
 
             list
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.bg)
         .background(WindowAutoSizer(desiredContentHeight: desiredContentHeight).frame(width: 0, height: 0))
         .onAppear {
             migrateRepoFilterModeIfNeeded()
             installKeyMonitor()
         }
         .onDisappear { keyMonitor?.stop() }
+        .environment(\.prdeckTheme, theme)
         .environment(\.prdeckZoomScale, computedZoomScale)
+        .tint(theme.accent)
+        .preferredColorScheme(.dark)
         .onPreferenceChange(PRDeckViewHeightPreferenceKey.self) { newValues in
             measuredHeights.merge(newValues, uniquingKeysWith: { _, new in new })
         }
@@ -211,21 +225,22 @@ struct RootView: View {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 13 * computedZoomScale))
-                    .foregroundStyle(.white.opacity(0.3))
+                    .foregroundStyle(theme.textDisabled)
 
                 TextField("Search", text: $searchText)
                     .textFieldStyle(.plain)
                     .focused($searchFocused)
                     .font(.system(size: 13 * computedZoomScale))
+                    .foregroundStyle(theme.textPrimary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.white.opacity(0.06))
+                    .fill(theme.elevated)
                     .overlay(
                         RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(searchFocused ? theme.focusRing : theme.border, lineWidth: searchFocused ? 1.5 : 1)
                     )
             )
             .frame(maxWidth: 300)
@@ -246,7 +261,7 @@ struct RootView: View {
             } label: {
                 Image(systemName: "line.3.horizontal.decrease.circle")
                     .font(.system(size: 15 * computedZoomScale))
-                    .foregroundStyle(isRepoFilterActive ? .primary : .secondary)
+                    .foregroundStyle(isRepoFilterActive ? theme.textPrimary : theme.textSecondary)
             }
             .buttonStyle(.plain)
             .popover(isPresented: $isRepoFilterPresented, arrowEdge: .top) {
@@ -260,7 +275,7 @@ struct RootView: View {
                 ZStack {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14 * computedZoomScale))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.textSecondary)
                         .opacity(dataController.isRefreshing ? 0 : 1)
 
                     ProgressView()
@@ -275,7 +290,7 @@ struct RootView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(theme.surface2)
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -283,13 +298,14 @@ struct RootView: View {
             Text(error)
                 .lineLimit(2)
                 .font(.system(size: 11 * computedZoomScale))
+                .foregroundStyle(theme.textPrimary)
             Spacer()
             Button("Retry") { Task { await dataController.refresh() } }
                 .controlSize(.small)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Color.red.opacity(0.12))
+        .background(theme.danger.opacity(0.12))
     }
 
     private var list: some View {
@@ -304,6 +320,7 @@ struct RootView: View {
         }
         .listStyle(.inset)
         .scrollContentBackground(.hidden)
+        .background(theme.surface)
     }
 
     private func installKeyMonitor() {
@@ -409,14 +426,15 @@ struct RootView: View {
     private func toastView(_ message: String) -> some View {
         Text(message)
             .font(.system(size: 12 * computedZoomScale, weight: .medium))
+            .foregroundStyle(theme.textPrimary)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .background(theme.elevated, in: Capsule(style: .continuous))
             .overlay(
                 Capsule(style: .continuous)
-                    .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                    .strokeBorder(theme.border, lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+            .shadow(color: theme.shadow, radius: 8, x: 0, y: 4)
             .padding(.horizontal, 12)
     }
 
@@ -461,6 +479,11 @@ struct RootView: View {
             .pickerStyle(.segmented)
             .frame(width: 240)
 
+            Toggle("Show repo/org logo", isOn: $showRepoAvatar)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .help("Shows the repository owner avatar on each PR row")
+
             TextField("Filter repos…", text: $repoFilterSearchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 360)
@@ -468,7 +491,7 @@ struct RootView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(repoFilterMode == .exclude ? "Hide repos" : "Show repos")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(theme.textSecondary)
 
                 HStack(spacing: 8) {
                     Button("Select All") {

@@ -3,6 +3,7 @@ import SwiftUI
 
 struct PRRowView: View {
     @Environment(\.prdeckZoomScale) private var zoomScale
+    @Environment(\.prdeckTheme) private var theme
     let item: PRItem
     let isSelected: Bool
     let onCopyPRURL: (URL) -> Void
@@ -10,6 +11,7 @@ struct PRRowView: View {
 
     @State private var isHovered = false
     @State private var pendingCopyTask: Task<Void, Never>?
+    @AppStorage(PRDeckDefaultsKey.showRepoAvatar) private var showRepoAvatar = true
 
     var body: some View {
         HStack(spacing: 0) {
@@ -21,23 +23,23 @@ struct PRRowView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
                     .font(.system(size: 13.5 * zoomScale, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 HStack(alignment: .center, spacing: 0) {
                     Text(item.repository.nameWithOwner)
-                        .foregroundStyle(.white.opacity(0.65))
+                        .foregroundStyle(theme.textSecondary)
                     
                     Text(" • #\(item.number)")
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.textTertiary)
                         .monospacedDigit()
                     
                     Text(" • ")
-                        .foregroundStyle(.white.opacity(0.3))
+                        .foregroundStyle(theme.textDisabled)
                     
                     Text(TimeAgo.string(from: item.updatedAt))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(theme.textTertiary)
                 }
                 .font(.system(size: 11.5 * zoomScale, weight: .medium))
                 .lineLimit(1)
@@ -84,12 +86,24 @@ struct PRRowView: View {
         }
         .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .listRowSeparator(.visible)
-        .listRowSeparatorTint(.white.opacity(0.08))
+        .listRowSeparatorTint(theme.divider)
         .listRowBackground(rowBackground)
     }
 
     @ViewBuilder
     private var authorAvatar: some View {
+        ZStack(alignment: .bottomTrailing) {
+            authorAvatarBase
+
+            if showRepoAvatar {
+                repoAvatar
+                    .offset(x: 1.5 * zoomScale, y: 1.5 * zoomScale)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var authorAvatarBase: some View {
         if let url = item.author?.avatarUrl {
             AsyncImage(url: url) { phase in
                 switch phase {
@@ -98,25 +112,45 @@ struct PRRowView: View {
                         .resizable()
                         .scaledToFill()
                 default:
-                    Color.gray.opacity(0.2)
+                    theme.muted.opacity(0.25)
                 }
             }
             .frame(width: 28 * zoomScale, height: 28 * zoomScale)
             .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.1), lineWidth: 1))
+            .overlay(Circle().stroke(theme.border, lineWidth: 1))
             .accessibilityLabel(Text(item.author?.login ?? "Author"))
         } else {
-            Color.gray.opacity(0.2)
+            theme.muted.opacity(0.25)
                 .frame(width: 28 * zoomScale, height: 28 * zoomScale)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(.white.opacity(0.1), lineWidth: 1))
+                .overlay(Circle().stroke(theme.border, lineWidth: 1))
                 .accessibilityHidden(true)
         }
     }
 
     @ViewBuilder
     private var repoAvatar: some View {
-        EmptyView()
+        if let url = item.repository.ownerAvatarUrl {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    theme.muted.opacity(0.25)
+                }
+            }
+            .frame(width: 13 * zoomScale, height: 13 * zoomScale)
+            .clipShape(Circle())
+            .overlay(
+                Circle()
+                    .stroke(theme.bg.opacity(0.9), lineWidth: 2 * zoomScale)
+            )
+            .overlay(Circle().stroke(theme.border, lineWidth: 1))
+            .shadow(color: theme.shadow, radius: 2 * zoomScale, x: 0, y: 1 * zoomScale)
+            .accessibilityLabel(Text(item.repository.ownerLogin ?? "Repository owner"))
+        }
     }
 
     private var statusLane: some View {
@@ -125,7 +159,7 @@ struct PRRowView: View {
             ZStack {
                 if item.mergeConflict {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(theme.warning)
                         .font(.system(size: 12 * zoomScale))
                         .help("Merge conflict")
                 }
@@ -137,17 +171,17 @@ struct PRRowView: View {
                 switch item.ciState {
                 case .failed:
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(theme.danger)
                         .font(.system(size: 12 * zoomScale))
                 case .success:
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green.opacity(0.8))
+                        .foregroundStyle(theme.success)
                         .font(.system(size: 12 * zoomScale))
                 case .running:
                     ProgressView()
                         .progressViewStyle(.circular)
                         .controlSize(.small)
-                        .colorMultiply(.yellow)
+                        .tint(theme.warning)
                         .scaleEffect(0.75 * zoomScale)
                 case .none, .unknown:
                     EmptyView()
@@ -160,16 +194,16 @@ struct PRRowView: View {
             ZStack {
                 if item.reviewDecision == .changesRequested {
                     Image(systemName: "xmark.octagon.fill")
-                        .foregroundStyle(.red)
+                        .foregroundStyle(theme.danger)
                 } else if item.isReviewRequestedToMe {
                     Image(systemName: "person.badge.exclamationmark")
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(theme.info)
                 } else if item.reviewDecision == .approved {
                     Image(systemName: "checkmark.circle")
-                        .foregroundStyle(.secondary.opacity(0.5))
+                        .foregroundStyle(theme.muted)
                 } else if item.reviewDecision == .reviewRequired {
                     Image(systemName: "circle.dashed")
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(theme.warning)
                 }
             }
             .font(.system(size: 13 * zoomScale))
@@ -216,9 +250,9 @@ struct PRRowView: View {
     private var rowBackground: some View {
         ZStack {
             if isSelected {
-                Color.white.opacity(0.12)
+                theme.rowSelected
             } else if isHovered {
-                Color.white.opacity(0.06)
+                theme.rowHover
             } else {
                 Color.clear
             }

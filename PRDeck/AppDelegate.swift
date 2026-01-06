@@ -32,6 +32,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let appMenu = NSMenu()
         appMenuItem.submenu = appMenu
+
+        let settingsItem = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openSettings(_:)),
+            keyEquivalent: ","
+        )
+        settingsItem.target = nil
+        appMenu.addItem(settingsItem)
+        appMenu.addItem(.separator())
+
         appMenu.addItem(
             withTitle: "Quit PRDeck",
             action: #selector(NSApplication.terminate(_:)),
@@ -62,6 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func zoomIn(_ sender: Any?) {
         bumpZoomStep(by: 1)
+    }
+
+    @objc private func openSettings(_ sender: Any?) {
+        if NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: sender) { return }
+        _ = NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: sender)
     }
 
     @objc private func zoomOut(_ sender: Any?) {

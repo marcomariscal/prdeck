@@ -109,8 +109,8 @@ struct HeaderBarView: View {
             .background(isFilterHovered ? theme.rowHover : .clear, in: Circle())
         }
         .buttonStyle(.plain)
-        .contentShape(Rectangle())
         .frame(width: statusColumnWidth, height: rowHeight, alignment: .trailing)
+        .contentShape(Rectangle())
         .prdeckInteractiveCursor()
         .onHover { isFilterHovered = $0 }
     }

@@ -105,6 +105,7 @@ public struct GitHubDataSource: Sendable {
                     updatedAt: node.updatedAt,
                     isDraft: node.isDraft,
                     mergeable: node.mergeable,
+                    mergeStateStatus: node.mergeStateStatus,
                     reviewDecision: node.reviewDecision,
                     author: node.author.map { .init(login: $0.login, avatarUrl: $0.avatarUrl) },
                     repository: .init(
@@ -125,51 +126,52 @@ public struct GitHubDataSource: Sendable {
 private extension GitHubDataSource {
     static let graphQLQuery =
     #"""
-    query($searchQuery: String!, $endCursor: String) {
-      search(query: $searchQuery, type: ISSUE, first: 100, after: $endCursor) {
-        pageInfo { hasNextPage endCursor }
-        nodes {
-          ... on PullRequest {
-            id
-            number
-            title
-            url
-            updatedAt
-            isDraft
-            mergeable
-            reviewDecision
-            author { login avatarUrl }
-            repository { nameWithOwner url owner { login avatarUrl } }
-            commits(last: 1) {
-              nodes {
-                commit {
-                  statusCheckRollup {
-                    state
-                    contexts(first: 50) {
-                      nodes {
-                        __typename
-                        ... on CheckRun {
-                          name
-                          conclusion
-                          status
-                          detailsUrl
-                        }
-                        ... on StatusContext {
-                          context
-                          state
-                          targetUrl
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    """#
+	    query($searchQuery: String!, $endCursor: String) {
+	      search(query: $searchQuery, type: ISSUE, first: 100, after: $endCursor) {
+	        pageInfo { hasNextPage endCursor }
+	        nodes {
+	          ... on PullRequest {
+	            id
+	            number
+	            title
+	            url
+	            updatedAt
+	            isDraft
+	            mergeable
+	            mergeStateStatus
+	            reviewDecision
+	            author { login avatarUrl }
+	            repository { nameWithOwner url owner { login avatarUrl } }
+	            commits(last: 1) {
+	              nodes {
+	                commit {
+	                  statusCheckRollup {
+	                    state
+	                    contexts(first: 50) {
+	                      nodes {
+	                        __typename
+	                        ... on CheckRun {
+	                          name
+	                          conclusion
+	                          status
+	                          detailsUrl
+	                        }
+	                        ... on StatusContext {
+	                          context
+	                          state
+	                          targetUrl
+	                        }
+	                      }
+	                    }
+	                  }
+	                }
+	              }
+	            }
+	          }
+	        }
+	      }
+	    }
+	    """#
 }
 
 private struct GraphQLResponse: Decodable {
@@ -195,18 +197,19 @@ private struct PageInfo: Decodable {
     let endCursor: String?
 }
 
-private struct PullRequestNode: Decodable {
-    let id: String
-    let number: Int
-    let title: String
-    let url: URL
-    let updatedAt: Date
-    let isDraft: Bool
-    let mergeable: PRItem.Mergeable?
-    let reviewDecision: PRItem.ReviewDecision?
-    let author: AuthorNode?
-    let repository: RepoNode
-    let commits: CommitsNode
+	private struct PullRequestNode: Decodable {
+	    let id: String
+	    let number: Int
+	    let title: String
+	    let url: URL
+	    let updatedAt: Date
+	    let isDraft: Bool
+	    let mergeable: PRItem.Mergeable?
+	    let mergeStateStatus: PRItem.MergeStateStatus?
+	    let reviewDecision: PRItem.ReviewDecision?
+	    let author: AuthorNode?
+	    let repository: RepoNode
+	    let commits: CommitsNode
 
     var statusCheckRollup: PRItem.StatusCheckRollup? {
         commits.nodes.first?.commit.statusCheckRollup

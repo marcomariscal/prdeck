@@ -42,6 +42,17 @@ public struct PRItem: Identifiable, Codable, Hashable, Sendable {
         case reviewRequired = "REVIEW_REQUIRED"
     }
 
+    public enum MergeStateStatus: String, Codable, Sendable {
+        case clean = "CLEAN"
+        case unstable = "UNSTABLE"
+        case blocked = "BLOCKED"
+        case behind = "BEHIND"
+        case dirty = "DIRTY"
+        case draft = "DRAFT"
+        case hasHooks = "HAS_HOOKS"
+        case unknown = "UNKNOWN"
+    }
+
     public enum CIState: String, Codable, Sendable {
         case none
         case running
@@ -122,6 +133,7 @@ public struct PRItem: Identifiable, Codable, Hashable, Sendable {
     public let updatedAt: Date
     public let isDraft: Bool
     public let mergeable: Mergeable?
+    public let mergeStateStatus: MergeStateStatus?
     public let reviewDecision: ReviewDecision?
     public let author: Author?
     public let repository: Repository
@@ -136,6 +148,7 @@ public struct PRItem: Identifiable, Codable, Hashable, Sendable {
         updatedAt: Date,
         isDraft: Bool,
         mergeable: Mergeable?,
+        mergeStateStatus: MergeStateStatus? = nil,
         reviewDecision: ReviewDecision?,
         author: Author?,
         repository: Repository,
@@ -149,6 +162,7 @@ public struct PRItem: Identifiable, Codable, Hashable, Sendable {
         self.updatedAt = updatedAt
         self.isDraft = isDraft
         self.mergeable = mergeable
+        self.mergeStateStatus = mergeStateStatus
         self.reviewDecision = reviewDecision
         self.author = author
         self.repository = repository
@@ -200,7 +214,19 @@ public extension PRItem {
     }
 
     var needsAttention: Bool {
-        mergeConflict
+        if isDraft { return false }
+
+        let mergeGateNeedsAttention: Bool = {
+            switch mergeStateStatus {
+            case .dirty, .behind, .blocked, .unstable, .hasHooks:
+                return true
+            case .clean, .draft, .unknown, .none:
+                return false
+            }
+        }()
+
+        return mergeConflict
+        || mergeGateNeedsAttention
         || ciState == .failed
         || isReviewRequestedToMe
         || reviewDecision == .changesRequested

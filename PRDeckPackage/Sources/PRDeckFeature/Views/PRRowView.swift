@@ -49,7 +49,7 @@ struct PRRowView: View {
 
             // Column C: Fixed Status Lane
             statusLane
-                .frame(width: 100 * zoomScale, alignment: .trailing)
+                .frame(width: 44 * zoomScale, alignment: .trailing)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -153,70 +153,123 @@ struct PRRowView: View {
         }
     }
 
+    private enum MergeGateVisual {
+        case clean
+        case checksRunning
+        case failingChecks
+        case blocked
+        case behind
+        case dirty
+        case draft
+        case hasHooks
+        case unknown
+    }
+
+    private var mergeGateVisual: MergeGateVisual {
+        if item.ciState == .running { return .checksRunning }
+        if item.ciState == .failed { return .failingChecks }
+        if item.mergeConflict { return .dirty }
+
+        switch item.mergeStateStatus {
+        case .clean:
+            return .clean
+        case .unstable:
+            return .failingChecks
+        case .blocked:
+            return .blocked
+        case .behind:
+            return .behind
+        case .dirty:
+            return .dirty
+        case .draft:
+            return .draft
+        case .hasHooks:
+            return .hasHooks
+        case .unknown, .none:
+            return .unknown
+        }
+    }
+
     private var statusLane: some View {
         let slotSize = 28 * zoomScale
-        let statusIconSize = 14 * zoomScale
+        let iconSize = 14 * zoomScale
 
-        return HStack(spacing: 0) {
-            // Slot 1: Conflict
-            ZStack {
-                if item.mergeConflict {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(theme.warning)
-                        .font(.system(size: statusIconSize))
-                        .help("Merge conflict")
-                }
+        let color: Color = {
+            switch mergeGateVisual {
+            case .clean:
+                return theme.success
+            case .checksRunning, .blocked, .behind, .hasHooks:
+                return theme.warning
+            case .failingChecks, .dirty:
+                return theme.danger
+            case .draft, .unknown:
+                return theme.muted
             }
-            .frame(width: slotSize, height: slotSize)
+        }()
 
-            // Slot 2: CI
+        let helpText: String = {
+            switch mergeGateVisual {
+            case .clean:
+                return "Mergeable"
+            case .checksRunning:
+                return "Checks running — click to open checks"
+            case .failingChecks:
+                return "Checks failing — click to open failing check"
+            case .blocked:
+                return "Blocked — click to open PR"
+            case .behind:
+                return "Behind base — click to open PR"
+            case .dirty:
+                return "Cannot merge cleanly — click to open PR"
+            case .draft:
+                return "Draft — click to open PR"
+            case .hasHooks:
+                return "Waiting on hooks — click to open PR"
+            case .unknown:
+                return "Merge status unknown — click to open PR"
+            }
+        }()
+
+        return Button {
+            switch mergeGateVisual {
+            case .checksRunning:
+                NSWorkspace.shared.open(checksURL)
+            case .failingChecks:
+                NSWorkspace.shared.open(item.failingCheckURL ?? checksURL)
+            case .clean, .blocked, .behind, .dirty, .draft, .hasHooks, .unknown:
+                NSWorkspace.shared.open(item.url)
+            }
+        } label: {
             Group {
-                switch item.ciState {
-                case .failed:
-                    Button {
-                        onCopyCIURL(ciURLToCopy())
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(theme.danger)
-                            .font(.system(size: statusIconSize))
-                    }
-                    .buttonStyle(.plain)
-                    .prdeckInteractiveCursor()
-                    .help("CI failed — click to copy logs link")
-                case .success:
+                switch mergeGateVisual {
+                case .checksRunning:
+                    PRDeckSpinner(color: color, size: iconSize, lineWidth: 2.5 * zoomScale)
+                case .clean:
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(theme.success)
-                        .font(.system(size: statusIconSize))
-                        .help(ciHelpText)
-                case .running:
-                    PRDeckSpinner(color: theme.warning, size: statusIconSize, lineWidth: 2.5 * zoomScale)
-                        .help(ciHelpText)
-                case .none, .unknown:
-                    EmptyView()
+                case .failingChecks:
+                    Image(systemName: "xmark.circle.fill")
+                case .blocked:
+                    Image(systemName: "lock.circle.fill")
+                case .behind:
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                case .dirty:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                case .draft:
+                    Image(systemName: "pencil.circle.fill")
+                case .hasHooks:
+                    Image(systemName: "bolt.circle.fill")
+                case .unknown:
+                    Image(systemName: "ellipsis.circle.fill")
                 }
             }
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(color)
+            .font(.system(size: iconSize))
             .frame(width: slotSize, height: slotSize)
-
-            // Slot 3: Review
-            ZStack {
-                if item.reviewDecision == .changesRequested {
-                    Image(systemName: "xmark.octagon.fill")
-                        .foregroundStyle(theme.danger)
-                } else if item.isReviewRequestedToMe {
-                    Image(systemName: "person.badge.exclamationmark")
-                        .foregroundStyle(theme.info)
-                } else if item.reviewDecision == .approved {
-                    Image(systemName: "checkmark.circle")
-                        .foregroundStyle(theme.muted)
-                } else if item.reviewDecision == .reviewRequired {
-                    Image(systemName: "circle.dashed")
-                        .foregroundStyle(theme.warning)
-                }
-            }
-            .font(.system(size: statusIconSize))
-            .frame(width: slotSize, height: slotSize)
-            .help(reviewHelpText)
         }
+        .buttonStyle(.plain)
+        .prdeckInteractiveCursor()
+        .help(helpText)
     }
 
     private func ciURLToCopy() -> URL {
@@ -235,23 +288,6 @@ struct PRRowView: View {
             guard !Task.isCancelled else { return }
             onCopyPRURL(item.url)
         }
-    }
-
-    private var ciHelpText: String {
-        switch item.ciState {
-        case .failed: return "CI failed"
-        case .running: return "CI running"
-        case .success: return "CI passed"
-        default: return ""
-        }
-    }
-
-    private var reviewHelpText: String {
-        if item.reviewDecision == .changesRequested { return "Changes requested" }
-        if item.isReviewRequestedToMe { return "Review requested (to you)" }
-        if item.reviewDecision == .approved { return "Approved" }
-        if item.reviewDecision == .reviewRequired { return "Review required" }
-        return ""
     }
 
     private var rowBackground: some View {

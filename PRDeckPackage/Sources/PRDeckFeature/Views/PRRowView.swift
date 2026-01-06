@@ -12,8 +12,6 @@ struct PRRowView: View {
     @State private var isHovered = false
     @State private var pendingCopyTask: Task<Void, Never>?
     @State private var pendingMergeGateCopyTask: Task<Void, Never>?
-    @State private var suppressRowGestureResetTask: Task<Void, Never>?
-    @State private var isSuppressingRowGestures = false
     @AppStorage(PRDeckDefaultsKey.showRepoAvatar) private var showRepoAvatar = true
 
     var body: some View {
@@ -61,12 +59,10 @@ struct PRRowView: View {
         .onHover { isHovered = $0 }
         .prdeckInteractiveCursor()
         .onTapGesture {
-            guard !isSuppressingRowGestures else { return }
             scheduleCopyPRLink()
         }
         .highPriorityGesture(
             TapGesture(count: 2).onEnded {
-                guard !isSuppressingRowGestures else { return }
                 pendingCopyTask?.cancel()
                 pendingCopyTask = nil
                 NSWorkspace.shared.open(item.url)
@@ -90,8 +86,6 @@ struct PRRowView: View {
             pendingCopyTask = nil
             pendingMergeGateCopyTask?.cancel()
             pendingMergeGateCopyTask = nil
-            suppressRowGestureResetTask?.cancel()
-            suppressRowGestureResetTask = nil
         }
         .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .listRowSeparator(.visible)
@@ -288,19 +282,23 @@ struct PRRowView: View {
             .prdeckInteractiveCursor()
             .help(helpText)
             .accessibilityAddTraits(.isButton)
-            .onTapGesture {
-                suppressRowGesturesBriefly()
-                scheduleCopyMergeGateLink(urlToCopy)
-            }
             .highPriorityGesture(
-                TapGesture(count: 2).onEnded {
-                    suppressRowGesturesBriefly()
-                    pendingCopyTask?.cancel()
-                    pendingCopyTask = nil
-                    pendingMergeGateCopyTask?.cancel()
-                    pendingMergeGateCopyTask = nil
-                    NSWorkspace.shared.open(urlToOpen)
-                }
+                TapGesture(count: 2)
+                    .exclusively(before: TapGesture())
+                    .onEnded { value in
+                        switch value {
+                        case .first:
+                            pendingCopyTask?.cancel()
+                            pendingCopyTask = nil
+
+                            pendingMergeGateCopyTask?.cancel()
+                            pendingMergeGateCopyTask = nil
+
+                            NSWorkspace.shared.open(urlToOpen)
+                        case .second:
+                            scheduleCopyMergeGateLink(urlToCopy)
+                        }
+                    }
             )
     }
 
@@ -313,17 +311,6 @@ struct PRRowView: View {
                 onCopyPRURL(url)
             } else {
                 onCopyCIURL(url)
-            }
-        }
-    }
-
-    private func suppressRowGesturesBriefly() {
-        isSuppressingRowGestures = true
-        suppressRowGestureResetTask?.cancel()
-        suppressRowGestureResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(260))
-            if !Task.isCancelled {
-                isSuppressingRowGestures = false
             }
         }
     }

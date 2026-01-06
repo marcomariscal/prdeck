@@ -44,6 +44,8 @@ struct RootView: View {
         return pow(1.12, CGFloat(clamped))
     }
 
+    private var titlebarHeight: CGFloat { 28 }
+
     private var themePalette: PRDeckPalette {
         PRDeckPalette(rawValue: themePaletteRaw) ?? .appleBetter
     }
@@ -181,6 +183,12 @@ struct RootView: View {
 
             list
         }
+        .padding(.top, titlebarHeight)
+        .background(alignment: .top) {
+            Rectangle()
+                .fill(theme.surface2)
+                .frame(height: titlebarHeight)
+        }
         .background(theme.bg)
         .background(WindowAutoSizer(desiredContentHeight: desiredContentHeight).frame(width: 0, height: 0))
         .onAppear {
@@ -218,7 +226,7 @@ struct RootView: View {
         let visibleCount = visibleItems.count
         let rowsHeight = rowHeight * CGFloat(max(visibleCount, 1))
 
-        return topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight
+        return titlebarHeight + topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight
     }
 
     private func migrateRepoFilterModeIfNeeded() {

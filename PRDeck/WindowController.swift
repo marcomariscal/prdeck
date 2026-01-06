@@ -33,7 +33,10 @@ final class WindowController: NSWindowController, NSWindowDelegate, NSToolbarDel
 
         window.contentView = hostingView
         window.title = "PRDeck"
+        window.titlebarAppearsTransparent = true
         window.level = .floating
+        window.styleMask.insert(.fullSizeContentView)
+        window.isMovableByWindowBackground = true
         window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         window.isReleasedWhenClosed = false
 

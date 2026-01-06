@@ -602,6 +602,24 @@ struct RootView: View {
                     .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
                     .foregroundStyle(theme.textPrimary)
 
+                HStack(alignment: .center, spacing: 10 * computedZoomScale) {
+                    Text("Theme")
+                        .font(.system(size: 12.5 * computedZoomScale, weight: .medium))
+                        .foregroundStyle(theme.textSecondary)
+
+                    Spacer()
+
+                    Picker("Theme", selection: $themePaletteRaw) {
+                        ForEach(PRDeckPalette.allCases) { palette in
+                            Text(palette.displayName).tag(palette.rawValue)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .controlSize(.small)
+                    .prdeckInteractiveCursor()
+                }
+
                 Toggle("Show repo/org logo", isOn: $showRepoAvatar)
                     .toggleStyle(.switch)
                     .controlSize(.small)

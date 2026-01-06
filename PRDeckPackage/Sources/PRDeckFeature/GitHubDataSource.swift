@@ -32,12 +32,49 @@ public struct GitHubDataSource: Sendable {
             throw GitHubDataSourceError(message: "GitHub CLI (`gh`) not found. Install it and run `gh auth login`.")
         }
 
+        var all: [PRItem] = []
+        var endCursor: String?
+        var pages = 0
+
+        while pages < 5, all.count < 500 {
+            pages += 1
+            let page = try await fetchPage(
+                ghPath: ghPath,
+                searchQuery: searchQuery,
+                endCursor: endCursor,
+                reviewRequestedToMe: reviewRequestedToMe
+            )
+
+            all.append(contentsOf: page.items)
+
+            guard page.pageInfo.hasNextPage, let next = page.pageInfo.endCursor else {
+                break
+            }
+            endCursor = next
+        }
+
+        return all
+    }
+
+    private func fetchPage(
+        ghPath: String,
+        searchQuery: String,
+        endCursor: String?,
+        reviewRequestedToMe: Bool
+    ) async throws -> (items: [PRItem], pageInfo: PageInfo) {
         let query = Self.graphQLQuery
-        let args: [String] = [
+
+        var args: [String] = [
             "api", "graphql",
             "-f", "query=\(query)",
             "-F", "searchQuery=\(searchQuery)",
         ]
+
+        if let endCursor {
+            args.append(contentsOf: ["-F", "endCursor=\(endCursor)"])
+        } else {
+            args.append(contentsOf: ["-F", "endCursor=null"])
+        }
 
         let data = try await ProcessRunner.run(ghPath, arguments: args)
         let decoder = JSONDecoder.prdeck
@@ -53,8 +90,11 @@ public struct GitHubDataSource: Sendable {
             throw GitHubDataSourceError(message: errors.map(\.message).joined(separator: "\n"))
         }
 
-        let nodes = response.data?.search?.nodes ?? []
-        return nodes
+        let search = response.data?.search
+        let nodes = search?.nodes ?? []
+        let pageInfo = search?.pageInfo ?? .init(hasNextPage: false, endCursor: nil)
+
+        let items = nodes
             .compactMap { $0 }
             .map { node in
                 PRItem(
@@ -77,14 +117,17 @@ public struct GitHubDataSource: Sendable {
                     isReviewRequestedToMe: reviewRequestedToMe
                 )
             }
+
+        return (items, pageInfo)
     }
 }
 
 private extension GitHubDataSource {
     static let graphQLQuery =
     #"""
-    query($searchQuery: String!) {
-      search(query: $searchQuery, type: ISSUE, first: 50) {
+    query($searchQuery: String!, $endCursor: String) {
+      search(query: $searchQuery, type: ISSUE, first: 100, after: $endCursor) {
+        pageInfo { hasNextPage endCursor }
         nodes {
           ... on PullRequest {
             id
@@ -139,11 +182,17 @@ private struct GraphQLData: Decodable {
 }
 
 private struct GraphQLSearch: Decodable {
+    let pageInfo: PageInfo
     let nodes: [PullRequestNode?]
 }
 
 private struct GraphQLError: Decodable {
     let message: String
+}
+
+private struct PageInfo: Decodable {
+    let hasNextPage: Bool
+    let endCursor: String?
 }
 
 private struct PullRequestNode: Decodable {

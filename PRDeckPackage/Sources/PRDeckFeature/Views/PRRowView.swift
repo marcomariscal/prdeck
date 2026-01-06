@@ -5,8 +5,11 @@ struct PRRowView: View {
     @Environment(\.prdeckZoomScale) private var zoomScale
     let item: PRItem
     let isSelected: Bool
+    let onCopyPRURL: (URL) -> Void
+    let onCopyCIURL: (URL) -> Void
 
     @State private var isHovered = false
+    @State private var pendingCopyTask: Task<Void, Never>?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -51,6 +54,34 @@ struct PRRowView: View {
         .frame(minHeight: 52 * zoomScale)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
+        .prdeckHoverCursor(.pointingHand)
+        .onTapGesture {
+            scheduleCopyPRLink()
+        }
+        .highPriorityGesture(
+            TapGesture(count: 2).onEnded {
+                pendingCopyTask?.cancel()
+                pendingCopyTask = nil
+                NSWorkspace.shared.open(item.url)
+            }
+        )
+        .contextMenu {
+            Button("Copy PR link") { onCopyPRURL(item.url) }
+            Button("Open PR") { NSWorkspace.shared.open(item.url) }
+
+            if item.ciState != .none, item.ciState != .unknown {
+                Button("Open checks") { NSWorkspace.shared.open(checksURL) }
+            }
+
+            if item.ciState == .failed {
+                Button("Copy CI logs link") { onCopyCIURL(ciURLToCopy()) }
+                Button("Open CI logs") { NSWorkspace.shared.open(ciURLToCopy()) }
+            }
+        }
+        .onDisappear {
+            pendingCopyTask?.cancel()
+            pendingCopyTask = nil
+        }
         .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .listRowSeparator(.visible)
         .listRowSeparatorTint(.white.opacity(0.08))
@@ -115,18 +146,15 @@ struct PRRowView: View {
                 case .running:
                     ProgressView()
                         .progressViewStyle(.circular)
-                        .controlSize(.mini)
-                        .tint(.yellow)
-                        .scaleEffect(0.7)
+                        .controlSize(.small)
+                        .colorMultiply(.yellow)
+                        .scaleEffect(0.75 * zoomScale)
                 case .none, .unknown:
                     EmptyView()
                 }
             }
             .frame(width: 28 * zoomScale, height: 28 * zoomScale)
             .help(ciHelpText)
-            .onTapGesture {
-                openCiUrl()
-            }
 
             // Slot 3: Review
             ZStack {
@@ -150,14 +178,21 @@ struct PRRowView: View {
         }
     }
 
-    private func openCiUrl() {
-        guard item.ciState == .failed || item.ciState == .running else { return }
-        if let url = item.failingCheckURL {
-            NSWorkspace.shared.open(url)
-            return
-        }
-        if let checksURL = URL(string: item.url.absoluteString + "/checks") {
-            NSWorkspace.shared.open(checksURL)
+    private func ciURLToCopy() -> URL {
+        if let url = item.failingCheckURL { return url }
+        return URL(string: item.url.absoluteString + "/checks") ?? item.url
+    }
+
+    private var checksURL: URL {
+        URL(string: item.url.absoluteString + "/checks") ?? item.url
+    }
+
+    private func scheduleCopyPRLink() {
+        pendingCopyTask?.cancel()
+        pendingCopyTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            guard !Task.isCancelled else { return }
+            onCopyPRURL(item.url)
         }
     }
 

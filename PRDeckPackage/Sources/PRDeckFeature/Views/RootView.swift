@@ -14,10 +14,17 @@ struct RootView: View {
     @State private var keyMonitor: KeyEventMonitor?
     @State private var isRepoFilterPresented = false
     @State private var repoFilterSearchText = ""
+    @State private var toast: Toast?
+    @State private var measuredHeights: [String: CGFloat] = [:]
 
     private enum RepoFilterMode: String {
         case exclude
         case include
+    }
+
+    private struct Toast: Identifiable {
+        let id = UUID()
+        let message: String
     }
 
     private var repoFilterMode: RepoFilterMode {
@@ -62,8 +69,21 @@ struct RootView: View {
     }
 
     private var availableRepos: [String] {
-        Array(Set(dataController.items.map(\.repository.nameWithOwner)))
-            .sorted()
+        var byLower: [String: String] = [:]
+
+        for name in dataController.items.map(\.repository.nameWithOwner) {
+            byLower[name.lowercased()] = name
+        }
+
+        for saved in excludedRepoSet.union(includedRepoSet) {
+            if byLower[saved] == nil {
+                byLower[saved] = saved
+            }
+        }
+
+        return byLower.values.sorted { lhs, rhs in
+            lhs.localizedCaseInsensitiveCompare(rhs) == .orderedAscending
+        }
     }
 
     private var visibleReposForFiltering: [String] {
@@ -126,22 +146,52 @@ struct RootView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+                .prdeckMeasureHeight("topBar")
             Divider()
                 .opacity(0.1)
 
             if let error = dataController.lastError {
                 errorBanner(error)
+                    .prdeckMeasureHeight("errorBanner")
             }
 
             list
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .background(WindowAutoSizer(desiredContentHeight: desiredContentHeight).frame(width: 0, height: 0))
         .onAppear {
             migrateRepoFilterModeIfNeeded()
             installKeyMonitor()
         }
         .onDisappear { keyMonitor?.stop() }
         .environment(\.prdeckZoomScale, computedZoomScale)
+        .onPreferenceChange(PRDeckViewHeightPreferenceKey.self) { newValues in
+            measuredHeights.merge(newValues, uniquingKeysWith: { _, new in new })
+        }
+        .overlay(alignment: .bottom) {
+            if let toast {
+                toastView(toast.message)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .padding(.bottom, 12)
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: toast?.id)
+    }
+
+    private var desiredContentHeight: CGFloat? {
+        let topBarHeight = measuredHeights["topBar"] ?? 0
+        guard topBarHeight > 0 else { return nil }
+
+        let errorBannerHeight = dataController.lastError == nil ? 0 : (measuredHeights["errorBanner"] ?? 0)
+        let dividerHeight: CGFloat = 1
+
+        // Matches `PRRowView`'s minimum row height; List chrome is an approximation for inset style padding.
+        let rowHeight = 52 * computedZoomScale
+        let listChrome: CGFloat = 44
+        let visibleCount = visibleItems.count
+        let rowsHeight = rowHeight * CGFloat(max(visibleCount, 1))
+
+        return topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight
     }
 
     private func migrateRepoFilterModeIfNeeded() {
@@ -158,11 +208,27 @@ struct RootView: View {
 
     private var topBar: some View {
         HStack(spacing: 12) {
-            TextField("Search", text: $searchText)
-                .textFieldStyle(.roundedBorder)
-                .focused($searchFocused)
-                .font(.system(size: 13 * computedZoomScale))
-                .frame(maxWidth: 300)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 13 * computedZoomScale))
+                    .foregroundStyle(.white.opacity(0.3))
+
+                TextField("Search", text: $searchText)
+                    .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .font(.system(size: 13 * computedZoomScale))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+            )
+            .frame(maxWidth: 300)
 
             Spacer()
 
@@ -188,20 +254,24 @@ struct RootView: View {
             }
             .help("Filter repositories")
 
-            if dataController.isRefreshing {
-                ProgressView()
-                    .controlSize(.small)
-            } else {
-                Button {
-                    Task { await dataController.refresh() }
-                } label: {
+            Button {
+                Task { await dataController.refresh() }
+            } label: {
+                ZStack {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 14 * computedZoomScale))
                         .foregroundStyle(.secondary)
+                        .opacity(dataController.isRefreshing ? 0 : 1)
+
+                    ProgressView()
+                        .controlSize(.small)
+                        .opacity(dataController.isRefreshing ? 1 : 0)
                 }
-                .buttonStyle(.plain)
-                .help("Refresh")
+                .frame(width: 18 * computedZoomScale, height: 18 * computedZoomScale)
             }
+            .buttonStyle(.plain)
+            .disabled(dataController.isRefreshing)
+            .help(dataController.isRefreshing ? "Refreshing…" : "Refresh")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -224,7 +294,12 @@ struct RootView: View {
 
     private var list: some View {
         List(visibleItems, selection: selectionBinding) { item in
-            PRRowView(item: item, isSelected: item.id == dataController.selectedId)
+            PRRowView(
+                item: item,
+                isSelected: item.id == dataController.selectedId,
+                onCopyPRURL: { copyToPasteboard($0); showToast("Copied PR link") },
+                onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI logs link") }
+            )
                 .tag(item.id)
         }
         .listStyle(.inset)
@@ -265,8 +340,8 @@ struct RootView: View {
         let hasNonShiftModifiers = flags.contains(.command) || flags.contains(.control) || flags.contains(.option) || flags.contains(.function)
         if hasNonShiftModifiers { return false }
 
-        if searchFocused {
-            if key == "\u{1b}" { // escape
+        if isTextInputActive() {
+            if searchFocused, key == "\u{1b}" { // escape
                 searchFocused = false
                 return true
             }
@@ -298,6 +373,51 @@ struct RootView: View {
         default:
             return false
         }
+    }
+
+    private func isTextInputActive() -> Bool {
+        guard let responder = NSApp.keyWindow?.firstResponder else { return false }
+
+        if let textView = responder as? NSTextView {
+            return textView.isFieldEditor || textView.isEditable
+        }
+
+        return responder is NSTextField
+    }
+
+    private func copyToPasteboard(_ url: URL) {
+        copyToPasteboard(url.absoluteString)
+    }
+
+    private func copyToPasteboard(_ string: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+    }
+
+    private func showToast(_ message: String) {
+        let toast = Toast(message: message)
+        self.toast = toast
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.25))
+            if self.toast?.id == toast.id {
+                self.toast = nil
+            }
+        }
+    }
+
+    private func toastView(_ message: String) -> some View {
+        Text(message)
+            .font(.system(size: 12 * computedZoomScale, weight: .medium))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.25), radius: 8, x: 0, y: 4)
+            .padding(.horizontal, 12)
     }
 
     private func moveSelection(delta: Int) {
@@ -346,7 +466,7 @@ struct RootView: View {
                 .frame(width: 360)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(repoFilterMode == .exclude ? "Hide selected repos" : "Show only selected repos (none = all)")
+                Text(repoFilterMode == .exclude ? "Hide repos" : "Show repos")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 

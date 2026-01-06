@@ -9,6 +9,6 @@ public struct ContentView: View {
 
     public var body: some View {
         RootView(dataController: dataController)
-            .frame(minWidth: 420, idealWidth: 420, minHeight: 520, idealHeight: 520)
+            .frame(minWidth: 420, idealWidth: 420, minHeight: 360, idealHeight: 440)
     }
 }

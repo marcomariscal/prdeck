@@ -7,6 +7,11 @@ final class WindowController: NSWindowController, NSWindowDelegate {
         static let pinnedCorner = "pinnedCorner"
     }
 
+    private enum WindowDefaults {
+        static let defaultContentSize = CGSize(width: 420, height: 440)
+        static let legacyDefaultContentSize = CGSize(width: 420, height: 520)
+    }
+
     private enum PinnedCorner: String {
         case topLeft
         case topRight
@@ -16,7 +21,7 @@ final class WindowController: NSWindowController, NSWindowDelegate {
         let hostingView = NSHostingView(rootView: rootView)
 
         let window = NSWindow(
-            contentRect: .init(x: 0, y: 0, width: 420, height: 520),
+            contentRect: .init(origin: .zero, size: WindowDefaults.defaultContentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -55,7 +60,21 @@ final class WindowController: NSWindowController, NSWindowDelegate {
         ) ?? .topRight
 
         let savedFrame = UserDefaults.standard.string(forKey: DefaultsKey.windowFrame).map(NSRectFromString)
-        let size = savedFrame?.size ?? .init(width: 420, height: 520)
+
+        let defaultFrameSize = window.frameRect(
+            forContentRect: .init(origin: .zero, size: WindowDefaults.defaultContentSize)
+        ).size
+
+        let migratedFrame = savedFrame.map { frame in
+            let contentSize = window.contentRect(forFrameRect: frame).size
+            let isLegacyDefault =
+                abs(contentSize.width - WindowDefaults.legacyDefaultContentSize.width) < 0.5 &&
+                abs(contentSize.height - WindowDefaults.legacyDefaultContentSize.height) < 0.5
+            guard isLegacyDefault else { return frame }
+            return .init(origin: frame.origin, size: defaultFrameSize)
+        }
+
+        let size = migratedFrame?.size ?? defaultFrameSize
 
         let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .init(x: 0, y: 0, width: 1200, height: 800)
         let margin: CGFloat = 12
@@ -80,4 +99,3 @@ final class WindowController: NSWindowController, NSWindowDelegate {
         UserDefaults.standard.set(pinnedCorner.rawValue, forKey: DefaultsKey.pinnedCorner)
     }
 }
-

@@ -167,28 +167,36 @@ struct PRRowView: View {
             .frame(width: 28 * zoomScale, height: 28 * zoomScale)
 
             // Slot 2: CI
-            ZStack {
+            Group {
                 switch item.ciState {
                 case .failed:
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundStyle(theme.danger)
-                        .font(.system(size: 12 * zoomScale))
+                    Button {
+                        onCopyCIURL(ciURLToCopy())
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(theme.danger)
+                            .font(.system(size: 12 * zoomScale))
+                    }
+                    .buttonStyle(.plain)
+                    .prdeckInteractiveCursor()
+                    .help("CI failed — click to copy logs link")
                 case .success:
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(theme.success)
                         .font(.system(size: 12 * zoomScale))
+                        .help(ciHelpText)
                 case .running:
                     ProgressView()
                         .progressViewStyle(.circular)
                         .controlSize(.small)
                         .tint(theme.warning)
                         .scaleEffect(0.75 * zoomScale)
+                        .help(ciHelpText)
                 case .none, .unknown:
                     EmptyView()
                 }
             }
             .frame(width: 28 * zoomScale, height: 28 * zoomScale)
-            .help(ciHelpText)
 
             // Slot 3: Review
             ZStack {

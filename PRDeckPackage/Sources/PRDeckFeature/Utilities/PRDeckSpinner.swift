@@ -28,11 +28,10 @@ struct PRDeckSpinner: View {
                     style: .init(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                 )
                 .rotationEffect(.degrees(isAnimating ? 360 : 0))
-                .animation(.linear(duration: 0.75).repeatForever(autoreverses: false), value: isAnimating)
+                .animation(.linear(duration: 0.9).repeatForever(autoreverses: false), value: isAnimating)
         }
         .frame(width: size, height: size)
         .onAppear { isAnimating = true }
         .onDisappear { isAnimating = false }
     }
 }
-

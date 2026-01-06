@@ -11,8 +11,7 @@ struct TitlebarTitleView: View {
     var body: some View {
         Text("PRDeck")
             .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(theme.accent)
+            .foregroundStyle(theme.textSecondary)
             .accessibilityAddTraits(.isHeader)
     }
 }
-

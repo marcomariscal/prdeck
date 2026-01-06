@@ -405,7 +405,7 @@ struct RootView: View {
                 item: item,
                 isSelected: item.id == dataController.selectedId,
                 onCopyPRURL: { copyToPasteboard($0); showToast("Copied PR link") },
-                onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI logs link") }
+                onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI link") }
             )
                 .tag(item.id)
         }

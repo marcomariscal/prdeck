@@ -11,6 +11,9 @@ struct PRRowView: View {
 
     @State private var isHovered = false
     @State private var pendingCopyTask: Task<Void, Never>?
+    @State private var pendingMergeGateCopyTask: Task<Void, Never>?
+    @State private var suppressRowGestureResetTask: Task<Void, Never>?
+    @State private var isSuppressingRowGestures = false
     @AppStorage(PRDeckDefaultsKey.showRepoAvatar) private var showRepoAvatar = true
 
     var body: some View {
@@ -58,10 +61,12 @@ struct PRRowView: View {
         .onHover { isHovered = $0 }
         .prdeckInteractiveCursor()
         .onTapGesture {
+            guard !isSuppressingRowGestures else { return }
             scheduleCopyPRLink()
         }
         .highPriorityGesture(
             TapGesture(count: 2).onEnded {
+                guard !isSuppressingRowGestures else { return }
                 pendingCopyTask?.cancel()
                 pendingCopyTask = nil
                 NSWorkspace.shared.open(item.url)
@@ -83,6 +88,10 @@ struct PRRowView: View {
         .onDisappear {
             pendingCopyTask?.cancel()
             pendingCopyTask = nil
+            pendingMergeGateCopyTask?.cancel()
+            pendingMergeGateCopyTask = nil
+            suppressRowGestureResetTask?.cancel()
+            suppressRowGestureResetTask = nil
         }
         .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .listRowSeparator(.visible)
@@ -230,46 +239,93 @@ struct PRRowView: View {
             }
         }()
 
-        return Button {
+        return mergeGateIcon(slotSize: slotSize, iconSize: iconSize, color: color, helpText: helpText)
+    }
+
+    private func mergeGateIcon(slotSize: CGFloat, iconSize: CGFloat, color: Color, helpText: String) -> some View {
+        let urlToCopy: URL = {
             switch mergeGateVisual {
             case .checksRunning:
-                NSWorkspace.shared.open(checksURL)
+                return checksURL
             case .failingChecks:
-                NSWorkspace.shared.open(item.failingCheckURL ?? checksURL)
+                return item.failingCheckURL ?? checksURL
             case .clean, .blocked, .behind, .dirty, .draft, .hasHooks, .unknown:
-                NSWorkspace.shared.open(item.url)
+                return item.url
             }
-        } label: {
-            Group {
-                switch mergeGateVisual {
-                case .checksRunning:
-                    PRDeckSpinner(color: color, size: iconSize, lineWidth: 2.75 * zoomScale)
-                case .clean:
-                    Image(systemName: "checkmark.circle.fill")
-                case .failingChecks:
-                    Image(systemName: "xmark.circle.fill")
-                case .blocked:
-                    Image(systemName: "lock.circle.fill")
-                case .behind:
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                case .dirty:
-                    Image(systemName: "exclamationmark.triangle.fill")
-                case .draft:
-                    Image(systemName: "pencil.circle.fill")
-                case .hasHooks:
-                    Image(systemName: "bolt.circle.fill")
-                case .unknown:
-                    Image(systemName: "ellipsis.circle.fill")
-                }
+        }()
+
+        let urlToOpen = urlToCopy
+
+        let label: some View = Group {
+            switch mergeGateVisual {
+            case .checksRunning:
+                PRDeckSpinner(color: color, size: iconSize, lineWidth: 2.75 * zoomScale)
+            case .clean:
+                Image(systemName: "checkmark.circle.fill")
+            case .failingChecks:
+                Image(systemName: "xmark.circle.fill")
+            case .blocked:
+                Image(systemName: "lock.circle.fill")
+            case .behind:
+                Image(systemName: "arrow.triangle.2.circlepath")
+            case .dirty:
+                Image(systemName: "exclamationmark.triangle.fill")
+            case .draft:
+                Image(systemName: "pencil.circle.fill")
+            case .hasHooks:
+                Image(systemName: "bolt.circle.fill")
+            case .unknown:
+                Image(systemName: "ellipsis.circle.fill")
             }
-            .symbolRenderingMode(.hierarchical)
-            .foregroundStyle(color)
-            .font(.system(size: iconSize))
-            .frame(width: slotSize, height: slotSize)
         }
-        .buttonStyle(.plain)
-        .prdeckInteractiveCursor()
-        .help(helpText)
+        .symbolRenderingMode(.hierarchical)
+        .foregroundStyle(color)
+        .font(.system(size: iconSize))
+        .frame(width: slotSize, height: slotSize)
+
+        return label
+            .contentShape(Rectangle())
+            .prdeckInteractiveCursor()
+            .help(helpText)
+            .accessibilityAddTraits(.isButton)
+            .onTapGesture {
+                suppressRowGesturesBriefly()
+                scheduleCopyMergeGateLink(urlToCopy)
+            }
+            .highPriorityGesture(
+                TapGesture(count: 2).onEnded {
+                    suppressRowGesturesBriefly()
+                    pendingCopyTask?.cancel()
+                    pendingCopyTask = nil
+                    pendingMergeGateCopyTask?.cancel()
+                    pendingMergeGateCopyTask = nil
+                    NSWorkspace.shared.open(urlToOpen)
+                }
+            )
+    }
+
+    private func scheduleCopyMergeGateLink(_ url: URL) {
+        pendingMergeGateCopyTask?.cancel()
+        pendingMergeGateCopyTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            guard !Task.isCancelled else { return }
+            if url == item.url {
+                onCopyPRURL(url)
+            } else {
+                onCopyCIURL(url)
+            }
+        }
+    }
+
+    private func suppressRowGesturesBriefly() {
+        isSuppressingRowGestures = true
+        suppressRowGestureResetTask?.cancel()
+        suppressRowGestureResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(260))
+            if !Task.isCancelled {
+                isSuppressingRowGestures = false
+            }
+        }
     }
 
     private func ciURLToCopy() -> URL {

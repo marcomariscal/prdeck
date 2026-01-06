@@ -56,7 +56,7 @@ struct PRRowView: View {
         .frame(minHeight: 52 * zoomScale)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
-        .prdeckHoverCursor(.pointingHand)
+        .prdeckInteractiveCursor()
         .onTapGesture {
             scheduleCopyPRLink()
         }

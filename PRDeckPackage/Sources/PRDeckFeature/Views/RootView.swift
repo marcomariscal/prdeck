@@ -18,6 +18,7 @@ struct RootView: View {
     @State private var repoFilterSearchText = ""
     @State private var toast: Toast?
     @State private var measuredHeights: [String: CGFloat] = [:]
+    @State private var hoveredAttentionSegment: AttentionSegment?
 
     private enum RepoFilterMode: String {
         case exclude
@@ -27,6 +28,11 @@ struct RootView: View {
     private struct Toast: Identifiable {
         let id = UUID()
         let message: String
+    }
+
+    private enum AttentionSegment: Hashable {
+        case attention
+        case all
     }
 
     private var repoFilterMode: RepoFilterMode {
@@ -122,7 +128,14 @@ struct RootView: View {
             return false
         }
 
-        return filtered
+        return filtered.sorted { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+            if lhs.repository.nameWithOwner != rhs.repository.nameWithOwner {
+                return lhs.repository.nameWithOwner.localizedCaseInsensitiveCompare(rhs.repository.nameWithOwner) == .orderedAscending
+            }
+            if lhs.number != rhs.number { return lhs.number > rhs.number }
+            return lhs.id < rhs.id
+        }
     }
 
     private var selectionBinding: Binding<PRItem.ID?> {
@@ -247,12 +260,7 @@ struct RootView: View {
 
             Spacer()
 
-            Picker("", selection: $showAll) {
-                Text("Needs attention (\(needsAttentionCount))").tag(false)
-                Text("All (\(allCount))").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 280)
+            attentionToggle
 
             Spacer()
 
@@ -264,6 +272,7 @@ struct RootView: View {
                     .foregroundStyle(isRepoFilterActive ? theme.textPrimary : theme.textSecondary)
             }
             .buttonStyle(.plain)
+            .prdeckInteractiveCursor()
             .popover(isPresented: $isRepoFilterPresented, arrowEdge: .top) {
                 repoFilterPopover
             }
@@ -285,12 +294,93 @@ struct RootView: View {
                 .frame(width: 18 * computedZoomScale, height: 18 * computedZoomScale)
             }
             .buttonStyle(.plain)
+            .prdeckInteractiveCursor()
             .disabled(dataController.isRefreshing)
             .help(dataController.isRefreshing ? "Refreshing…" : "Refresh")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(theme.surface2)
+    }
+
+    private var attentionToggle: some View {
+        HStack(spacing: 0) {
+            attentionToggleButton(
+                segment: .attention,
+                title: "Needs attention",
+                count: needsAttentionCount,
+                isOn: !showAll,
+                action: { showAll = false }
+            )
+
+            attentionToggleButton(
+                segment: .all,
+                title: "All",
+                count: allCount,
+                isOn: showAll,
+                action: { showAll = true }
+            )
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(theme.elevated)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(theme.border, lineWidth: 1)
+        )
+        .frame(width: 280)
+        .animation(.easeInOut(duration: 0.14), value: showAll)
+        .animation(.easeInOut(duration: 0.10), value: hoveredAttentionSegment)
+    }
+
+    private func attentionToggleButton(
+        segment: AttentionSegment,
+        title: String,
+        count: Int,
+        isOn: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        let isHovered = hoveredAttentionSegment == segment
+
+        return Button(action: action) {
+            (
+                Text(title)
+                    .foregroundStyle(isOn ? theme.textPrimary : theme.textSecondary)
+                +
+                Text(" (\(count))")
+                    .monospacedDigit()
+                    .foregroundStyle(isOn ? theme.textSecondary : theme.textTertiary)
+            )
+            .font(.system(size: 11.25 * computedZoomScale, weight: .semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+            .allowsTightening(true)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 10)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isOn ? theme.rowSelected : (isHovered ? theme.rowHover : .clear))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(isOn ? theme.focusRing.opacity(0.8) : .clear, lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .prdeckInteractiveCursor()
+        .onHover { isHovering in
+            if isHovering {
+                hoveredAttentionSegment = segment
+            } else if hoveredAttentionSegment == segment {
+                hoveredAttentionSegment = nil
+            }
+        }
+        .accessibilityLabel(Text("\(title), \(count)"))
+        .accessibilityAddTraits(isOn ? [.isSelected] : [])
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -302,6 +392,7 @@ struct RootView: View {
             Spacer()
             Button("Retry") { Task { await dataController.refresh() } }
                 .controlSize(.small)
+                .prdeckInteractiveCursor()
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -477,12 +568,14 @@ struct RootView: View {
                 Text("Include").tag(RepoFilterMode.include.rawValue)
             }
             .pickerStyle(.segmented)
+            .prdeckInteractiveCursor()
             .frame(width: 240)
 
             Toggle("Show repo/org logo", isOn: $showRepoAvatar)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .help("Shows the repository owner avatar on each PR row")
+                .prdeckInteractiveCursor()
 
             TextField("Filter repos…", text: $repoFilterSearchText)
                 .textFieldStyle(.roundedBorder)
@@ -507,6 +600,7 @@ struct RootView: View {
                         }
                     }
                     .controlSize(.small)
+                    .prdeckInteractiveCursor()
 
                     Button("Clear") {
                         switch repoFilterMode {
@@ -517,6 +611,7 @@ struct RootView: View {
                         }
                     }
                     .controlSize(.small)
+                    .prdeckInteractiveCursor()
 
                     Spacer()
                 }
@@ -545,6 +640,7 @@ struct RootView: View {
                         }
                     ))
                     .toggleStyle(.checkbox)
+                    .prdeckInteractiveCursor()
                 }
                 .frame(width: 380, height: 220)
             }
@@ -554,6 +650,7 @@ struct RootView: View {
                 Button("Done") { isRepoFilterPresented = false }
                     .keyboardShortcut(.defaultAction)
                     .controlSize(.regular)
+                    .prdeckInteractiveCursor()
             }
         }
         .padding(12)

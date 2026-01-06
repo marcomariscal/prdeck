@@ -154,17 +154,20 @@ struct PRRowView: View {
     }
 
     private var statusLane: some View {
-        HStack(spacing: 0) {
+        let slotSize = 28 * zoomScale
+        let statusIconSize = 14 * zoomScale
+
+        return HStack(spacing: 0) {
             // Slot 1: Conflict
             ZStack {
                 if item.mergeConflict {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(theme.warning)
-                        .font(.system(size: 12 * zoomScale))
+                        .font(.system(size: statusIconSize))
                         .help("Merge conflict")
                 }
             }
-            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
+            .frame(width: slotSize, height: slotSize)
 
             // Slot 2: CI
             Group {
@@ -175,7 +178,7 @@ struct PRRowView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(theme.danger)
-                            .font(.system(size: 12 * zoomScale))
+                            .font(.system(size: statusIconSize))
                     }
                     .buttonStyle(.plain)
                     .prdeckInteractiveCursor()
@@ -183,16 +186,16 @@ struct PRRowView: View {
                 case .success:
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(theme.success)
-                        .font(.system(size: 12 * zoomScale))
+                        .font(.system(size: statusIconSize))
                         .help(ciHelpText)
                 case .running:
-                    PRDeckSpinner(color: theme.warning, size: 14 * zoomScale, lineWidth: 2.5 * zoomScale)
+                    PRDeckSpinner(color: theme.warning, size: statusIconSize, lineWidth: 2.5 * zoomScale)
                         .help(ciHelpText)
                 case .none, .unknown:
                     EmptyView()
                 }
             }
-            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
+            .frame(width: slotSize, height: slotSize)
 
             // Slot 3: Review
             ZStack {
@@ -210,8 +213,8 @@ struct PRRowView: View {
                         .foregroundStyle(theme.warning)
                 }
             }
-            .font(.system(size: 13 * zoomScale))
-            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
+            .font(.system(size: statusIconSize))
+            .frame(width: slotSize, height: slotSize)
             .help(reviewHelpText)
         }
     }

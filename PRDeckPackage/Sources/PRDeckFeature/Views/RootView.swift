@@ -20,9 +20,6 @@ struct RootView: View {
     @State private var measuredHeights: [String: CGFloat] = [:]
     @State private var refreshIndicatorTask: Task<Void, Never>?
     @State private var showRefreshIndicators = false
-    @State private var statusIconCenterX: CGFloat?
-    @State private var headerFilterIconCenterX: CGFloat?
-    @State private var headerFilterIconOffsetX: CGFloat = 0
 
     private enum RepoFilterMode: String {
         case exclude
@@ -259,14 +256,6 @@ struct RootView: View {
         .onPreferenceChange(PRDeckViewHeightPreferenceKey.self) { newValues in
             measuredHeights.merge(newValues, uniquingKeysWith: { _, new in new })
         }
-        .onPreferenceChange(PRDeckLayoutPreferenceKey.StatusIconCenterX.self) { newValue in
-            statusIconCenterX = newValue
-            updateHeaderFilterIconOffset()
-        }
-        .onPreferenceChange(PRDeckLayoutPreferenceKey.HeaderFilterIconCenterX.self) { newValue in
-            headerFilterIconCenterX = newValue
-            updateHeaderFilterIconOffset()
-        }
         .overlay(alignment: .bottom) {
             if let toast {
                 toastView(toast.message)
@@ -322,27 +311,9 @@ struct RootView: View {
                     isRepoFilterPresented: $isRepoFilterPresented,
                     isRepoFilterActive: isRepoFilterActive,
                     repoFilterActiveCount: repoFilterActiveCount,
-                    repoFilterHelp: repoFilterHelp,
-                    filterIconOffsetX: headerFilterIconOffsetX
+                    repoFilterHelp: repoFilterHelp
                 )
             }
-        }
-    }
-
-    private func updateHeaderFilterIconOffset() {
-        guard !isRepoFilterPresented,
-              let statusIconCenterX,
-              let headerFilterIconCenterX
-        else {
-            headerFilterIconOffsetX = 0
-            return
-        }
-
-        let diff = statusIconCenterX - headerFilterIconCenterX
-        if abs(diff) < 0.5 {
-            headerFilterIconOffsetX = 0
-        } else {
-            headerFilterIconOffsetX = diff
         }
     }
 
@@ -373,7 +344,7 @@ struct RootView: View {
             )
                 .tag(item.id)
         }
-        .listStyle(.inset)
+        .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .background(theme.surface)
     }

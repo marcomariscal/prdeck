@@ -53,7 +53,7 @@ struct PRRowView: View {
             statusLane
                 .frame(width: 44 * zoomScale, alignment: .trailing)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 20 * zoomScale)
         .padding(.vertical, 10)
         .frame(minHeight: 52 * zoomScale)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -277,14 +277,6 @@ struct PRRowView: View {
             }
         }
         .frame(width: slotSize, height: slotSize)
-        .background(
-            GeometryReader { proxy in
-                Color.clear.preference(
-                    key: PRDeckLayoutPreferenceKey.StatusIconCenterX.self,
-                    value: proxy.frame(in: .global).midX
-                )
-            }
-        )
         .overlay {
             if isRefreshing, mergeGateVisual != .checksRunning {
                 PRDeckSpinner(color: color.opacity(0.75), size: refreshRingSize, lineWidth: 2.0 * zoomScale)

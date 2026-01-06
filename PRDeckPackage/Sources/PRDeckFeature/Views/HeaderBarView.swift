@@ -12,7 +12,6 @@ struct HeaderBarView: View {
     let isRepoFilterActive: Bool
     let repoFilterActiveCount: Int
     let repoFilterHelp: String
-    let filterIconOffsetX: CGFloat
 
     @State private var isFilterHovered = false
 
@@ -23,13 +22,8 @@ struct HeaderBarView: View {
     private var statusIconSize: CGFloat { 18 * zoomScale }
 
     private var toolbarPaddingLeading: CGFloat { 20 * zoomScale }
-    private var toolbarPaddingTrailing: CGFloat { (20 * zoomScale) + scrollerGutterWidth }
+    private var toolbarPaddingTrailing: CGFloat { 20 * zoomScale }
     private var statusColumnWidth: CGFloat { 44 * zoomScale }
-
-    private var scrollerGutterWidth: CGFloat {
-        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
-        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
-    }
 
     var body: some View {
         topRow
@@ -107,14 +101,6 @@ struct HeaderBarView: View {
                 }
             }
             .frame(width: iconHitSize, height: iconHitSize)
-            .background(
-                GeometryReader { proxy in
-                    Color.clear.preference(
-                        key: PRDeckLayoutPreferenceKey.HeaderFilterIconCenterX.self,
-                        value: proxy.frame(in: .global).midX
-                    )
-                }
-            )
             .background(isFilterHovered ? theme.rowHover : .clear, in: Circle())
         }
         .buttonStyle(.plain)
@@ -122,6 +108,5 @@ struct HeaderBarView: View {
         .contentShape(Rectangle())
         .prdeckInteractiveCursor()
         .onHover { isFilterHovered = $0 }
-        .offset(x: filterIconOffsetX)
     }
 }

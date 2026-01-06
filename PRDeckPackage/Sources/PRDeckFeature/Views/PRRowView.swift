@@ -255,26 +255,23 @@ struct PRRowView: View {
             case .checksRunning:
                 PRDeckSpinner(color: color, size: iconSize, lineWidth: 3.0 * zoomScale)
             case .clean:
-                Image(systemName: "checkmark.circle.fill")
+                mergeGateSymbol("checkmark.circle.fill", size: iconSize, color: color)
             case .failingChecks:
-                Image(systemName: "xmark.circle.fill")
+                mergeGateSymbol("xmark.circle.fill", size: iconSize, color: color)
             case .blocked:
-                Image(systemName: "lock.circle.fill")
+                mergeGateSymbol("lock.circle.fill", size: iconSize, color: color)
             case .behind:
-                Image(systemName: "arrow.triangle.2.circlepath")
+                mergeGateSymbol("arrow.triangle.2.circlepath", size: iconSize, color: color)
             case .dirty:
-                Image(systemName: "exclamationmark.triangle.fill")
+                mergeGateSymbol("exclamationmark.triangle.fill", size: iconSize, color: color)
             case .draft:
-                Image(systemName: "pencil.circle.fill")
+                mergeGateSymbol("pencil.circle.fill", size: iconSize, color: color)
             case .hasHooks:
-                Image(systemName: "bolt.circle.fill")
+                mergeGateSymbol("bolt.circle.fill", size: iconSize, color: color)
             case .unknown:
-                Image(systemName: "ellipsis.circle.fill")
+                mergeGateSymbol("ellipsis.circle.fill", size: iconSize, color: color)
             }
         }
-        .symbolRenderingMode(.hierarchical)
-        .foregroundStyle(color)
-        .font(.system(size: iconSize))
         .frame(width: slotSize, height: slotSize)
 
         return label
@@ -300,6 +297,15 @@ struct PRRowView: View {
                         }
                     }
             )
+    }
+
+    private func mergeGateSymbol(_ name: String, size: CGFloat, color: Color) -> some View {
+        Image(systemName: name)
+            .resizable()
+            .scaledToFit()
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(color)
+            .frame(width: size, height: size)
     }
 
     private func scheduleCopyMergeGateLink(_ url: URL) {

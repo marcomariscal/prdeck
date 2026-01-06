@@ -12,6 +12,7 @@ struct HeaderBarView: View {
     let isRepoFilterActive: Bool
     let repoFilterActiveCount: Int
     let repoFilterHelp: String
+    let filterIconOffsetX: CGFloat
 
     @State private var isFilterHovered = false
 
@@ -106,6 +107,14 @@ struct HeaderBarView: View {
                 }
             }
             .frame(width: iconHitSize, height: iconHitSize)
+            .background(
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: PRDeckLayoutPreferenceKey.HeaderFilterIconCenterX.self,
+                        value: proxy.frame(in: .global).midX
+                    )
+                }
+            )
             .background(isFilterHovered ? theme.rowHover : .clear, in: Circle())
         }
         .buttonStyle(.plain)
@@ -113,5 +122,6 @@ struct HeaderBarView: View {
         .contentShape(Rectangle())
         .prdeckInteractiveCursor()
         .onHover { isFilterHovered = $0 }
+        .offset(x: filterIconOffsetX)
     }
 }

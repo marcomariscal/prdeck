@@ -6,6 +6,10 @@ private final class CursorTrackingView: NSView {
     private var trackingAreaRef: NSTrackingArea?
     private var didPush = false
 
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        nil
+    }
+
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
 
@@ -60,7 +64,6 @@ private struct HoverCursor: NSViewRepresentable {
 
 extension View {
     func prdeckHoverCursor(_ cursor: NSCursor) -> some View {
-        background(HoverCursor(cursor: cursor).allowsHitTesting(false))
+        background(HoverCursor(cursor: cursor))
     }
 }
-

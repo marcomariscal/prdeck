@@ -277,6 +277,14 @@ struct PRRowView: View {
             }
         }
         .frame(width: slotSize, height: slotSize)
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: PRDeckLayoutPreferenceKey.StatusIconCenterX.self,
+                    value: proxy.frame(in: .global).midX
+                )
+            }
+        )
         .overlay {
             if isRefreshing, mergeGateVisual != .checksRunning {
                 PRDeckSpinner(color: color.opacity(0.75), size: refreshRingSize, lineWidth: 2.0 * zoomScale)

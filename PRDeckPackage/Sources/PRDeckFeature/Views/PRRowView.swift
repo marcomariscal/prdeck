@@ -55,6 +55,8 @@ struct PRRowView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(minHeight: 52 * zoomScale)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(rowBackground)
         .contentShape(Rectangle())
         .onHover { isHovered = $0 }
         .prdeckInteractiveCursor()
@@ -90,7 +92,7 @@ struct PRRowView: View {
         .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
         .listRowSeparator(.visible)
         .listRowSeparatorTint(theme.divider)
-        .listRowBackground(rowBackground)
+        .listRowBackground(Color.clear)
     }
 
     @ViewBuilder
@@ -253,7 +255,7 @@ struct PRRowView: View {
         let label: some View = Group {
             switch mergeGateVisual {
             case .checksRunning:
-                PRDeckSpinner(color: color, size: iconSize, lineWidth: 3.0 * zoomScale)
+                PRDeckSpinner(color: color, size: iconSize * 0.86, lineWidth: 2.6 * zoomScale)
             case .clean:
                 mergeGateSymbol("checkmark.circle.fill", size: iconSize, color: color)
             case .failingChecks:
@@ -341,13 +343,49 @@ struct PRRowView: View {
 
     private var rowBackground: some View {
         ZStack {
-            if isSelected {
-                theme.rowSelected
-            } else if isHovered {
-                theme.rowHover
-            } else {
-                Color.clear
-            }
+            theme.surface
+
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(selectionFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(selectionStroke, lineWidth: 1)
+                )
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
         }
+    }
+
+    private var selectionFill: some ShapeStyle {
+        if isSelected {
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: [
+                        theme.focusRing.opacity(0.22),
+                        theme.focusRing.opacity(0.10),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+        }
+
+        if isHovered {
+            return AnyShapeStyle(theme.rowHover)
+        }
+
+        return AnyShapeStyle(Color.clear)
+    }
+
+    private var selectionStroke: some ShapeStyle {
+        if isSelected {
+            return AnyShapeStyle(theme.focusRing.opacity(0.55))
+        }
+
+        if isHovered {
+            return AnyShapeStyle(theme.border.opacity(0.5))
+        }
+
+        return AnyShapeStyle(Color.clear)
     }
 }

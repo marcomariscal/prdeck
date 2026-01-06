@@ -134,6 +134,23 @@ struct RootView: View {
         }
     }
 
+    private var sizingItemCount: Int {
+        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if q.isEmpty { return visibleItems.count }
+
+        return dataController.items.reduce(into: 0) { count, item in
+            let repo = item.repository.nameWithOwner.lowercased()
+            switch repoFilterMode {
+            case .exclude:
+                if excludedRepoSet.contains(repo) { return }
+            case .include:
+                if !includedRepoSet.isEmpty, !includedRepoSet.contains(repo) { return }
+            }
+            if !showAll, !item.needsAttention { return }
+            count += 1
+        }
+    }
+
     private var selectionBinding: Binding<PRItem.ID?> {
         Binding(
             get: { dataController.selectedId },
@@ -239,7 +256,7 @@ struct RootView: View {
         // Matches `PRRowView`'s minimum row height; List chrome is an approximation for inset style padding.
         let rowHeight = 52 * computedZoomScale
         let listChrome: CGFloat = 44
-        let visibleCount = visibleItems.count
+        let visibleCount = sizingItemCount
         let rowsHeight = rowHeight * CGFloat(max(visibleCount, 1))
 
         return titlebarHeight + topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight

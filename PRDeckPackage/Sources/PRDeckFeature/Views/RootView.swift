@@ -284,18 +284,13 @@ struct RootView: View {
             zoomScale: computedZoomScale,
             searchText: $searchText,
             searchFocused: $searchFocused,
-            needsAttentionCount: needsAttentionCount,
-            allCount: allCount,
-            showAll: $showAll,
             isRepoFilterPresented: $isRepoFilterPresented,
             isRepoFilterActive: isRepoFilterActive,
             repoFilterActiveCount: repoFilterActiveCount,
             repoFilterHelp: repoFilterHelp,
             repoFilterPopover: { AnyView(repoFilterPopover) },
             filterTokens: filterTokens,
-            isRefreshing: dataController.isRefreshing,
-            lastSuccessfulRefreshAt: dataController.lastSuccessfulRefreshAt,
-            onRefresh: { Task { await dataController.refresh(reloadRepos: true) } }
+            isRefreshing: dataController.isRefreshing
         )
     }
 
@@ -482,6 +477,34 @@ struct RootView: View {
 
     private var repoFilterPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Filters")
+                    .font(.headline)
+
+                Spacer()
+
+                Button("Refresh") {
+                    Task { await dataController.refresh(reloadRepos: true) }
+                }
+                .controlSize(.small)
+                .prdeckInteractiveCursor()
+            }
+
+            Picker("", selection: Binding(
+                get: { showAll ? "all" : "attention" },
+                set: { showAll = $0 == "all" }
+            )) {
+                Text("Needs attention (\(needsAttentionCount))").tag("attention")
+                Text("All (\(allCount))").tag("all")
+            }
+            .pickerStyle(.segmented)
+            .prdeckInteractiveCursor()
+            .frame(width: 380)
+
+            Rectangle()
+                .fill(theme.divider)
+                .frame(height: 1)
+
             Text("Repositories")
                 .font(.headline)
 

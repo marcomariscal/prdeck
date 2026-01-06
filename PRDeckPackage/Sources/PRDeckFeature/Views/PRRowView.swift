@@ -186,11 +186,7 @@ struct PRRowView: View {
                         .font(.system(size: 12 * zoomScale))
                         .help(ciHelpText)
                 case .running:
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .controlSize(.small)
-                        .tint(theme.warning)
-                        .scaleEffect(0.75 * zoomScale)
+                    PRDeckSpinner(color: theme.warning, size: 14 * zoomScale, lineWidth: 2.5 * zoomScale)
                         .help(ciHelpText)
                 case .none, .unknown:
                     EmptyView()

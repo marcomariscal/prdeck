@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowController: WindowController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = NSApp.setActivationPolicy(.regular)
         installMenu()
 
         let dataController = DataController()

@@ -18,6 +18,8 @@ struct RootView: View {
     @State private var repoFilterSearchText = ""
     @State private var toast: Toast?
     @State private var measuredHeights: [String: CGFloat] = [:]
+    @State private var refreshIndicatorTask: Task<Void, Never>?
+    @State private var showRefreshIndicators = false
 
     private enum RepoFilterMode: String {
         case exclude
@@ -225,9 +227,27 @@ struct RootView: View {
             migrateRepoFilterModeIfNeeded()
             installKeyMonitor()
         }
-        .onDisappear { keyMonitor?.stop() }
+        .onDisappear {
+            refreshIndicatorTask?.cancel()
+            refreshIndicatorTask = nil
+            keyMonitor?.stop()
+        }
         .onChange(of: isRepoFilterPresented) { _, newValue in
             if newValue { searchFocused = false }
+        }
+        .onChange(of: dataController.isRefreshing) { _, isRefreshing in
+            refreshIndicatorTask?.cancel()
+            refreshIndicatorTask = nil
+
+            if isRefreshing {
+                refreshIndicatorTask = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    guard !Task.isCancelled, dataController.isRefreshing else { return }
+                    showRefreshIndicators = true
+                }
+            } else {
+                showRefreshIndicators = false
+            }
         }
         .environment(\.prdeckTheme, theme)
         .environment(\.prdeckZoomScale, computedZoomScale)
@@ -317,7 +337,7 @@ struct RootView: View {
         List(visibleItems, selection: selectionBinding) { item in
             PRRowView(
                 item: item,
-                isRefreshing: dataController.isRefreshing,
+                isRefreshing: showRefreshIndicators,
                 isSelected: item.id == dataController.selectedId,
                 onCopyPRURL: { copyToPasteboard($0); showToast("Copied PR link") },
                 onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI link") }

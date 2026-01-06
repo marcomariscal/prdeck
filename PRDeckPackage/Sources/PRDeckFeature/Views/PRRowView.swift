@@ -252,6 +252,7 @@ struct PRRowView: View {
         }()
 
         let urlToOpen = urlToCopy
+        let refreshRingSize = max(0, slotSize - (4 * zoomScale))
 
         let label: some View = Group {
             switch mergeGateVisual {
@@ -278,7 +279,7 @@ struct PRRowView: View {
         .frame(width: slotSize, height: slotSize)
         .overlay {
             if isRefreshing, mergeGateVisual != .checksRunning {
-                PRDeckSpinner(color: color.opacity(0.95), size: slotSize, lineWidth: 2.2 * zoomScale)
+                PRDeckSpinner(color: color.opacity(0.75), size: refreshRingSize, lineWidth: 2.0 * zoomScale)
                     .allowsHitTesting(false)
             }
         }

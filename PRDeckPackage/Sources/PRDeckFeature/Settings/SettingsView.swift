@@ -13,6 +13,7 @@ public struct SettingsView: View {
                         .tag(palette.rawValue)
                 }
             }
+            .prdeckInteractiveCursor()
         }
         .formStyle(.grouped)
         .padding(16)

@@ -87,10 +87,6 @@ struct RootView: View {
             byLower[name.lowercased()] = name
         }
 
-        for name in dataController.knownRepos {
-            byLower[name.lowercased()] = name
-        }
-
         for saved in excludedRepoSet.union(includedRepoSet) {
             if byLower[saved] == nil {
                 byLower[saved] = saved
@@ -180,30 +176,6 @@ struct RootView: View {
         let modeLabel = repoFilterMode == .exclude ? "excluded" : "included"
         return "Filter repositories (\(repoFilterActiveCount) \(modeLabel))"
     }
-    
-    private var filterTokens: [HeaderBarView<AnyView>.FilterToken] {
-        var tokens: [HeaderBarView<AnyView>.FilterToken] = []
-        
-        // Repo filter token
-        if isRepoFilterActive {
-            let count = repoFilterActiveCount
-            let mode = repoFilterMode == .exclude ? "excluded" : "included"
-            let label = "Repo: \(count) \(mode)"
-            
-            tokens.append(.init(
-                id: "repo-filter",
-                label: label,
-                onRemove: {
-                    switch repoFilterMode {
-                    case .exclude: setExcludedRepoSet([])
-                    case .include: setIncludedRepoSet([])
-                    }
-                }
-            ))
-        }
-        
-        return tokens
-    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -218,7 +190,11 @@ struct RootView: View {
                     .prdeckMeasureHeight("errorBanner")
             }
 
-            list
+            if isRepoFilterPresented {
+                filtersView
+            } else {
+                list
+            }
         }
         .padding(.top, titlebarHeight)
         .background(alignment: .top) {
@@ -233,6 +209,9 @@ struct RootView: View {
             installKeyMonitor()
         }
         .onDisappear { keyMonitor?.stop() }
+        .onChange(of: isRepoFilterPresented) { _, newValue in
+            if newValue { searchFocused = false }
+        }
         .environment(\.prdeckTheme, theme)
         .environment(\.prdeckZoomScale, computedZoomScale)
         .tint(theme.accent)
@@ -279,19 +258,26 @@ struct RootView: View {
     }
 
     private var topBar: some View {
-        HeaderBarView(
-            theme: theme,
-            zoomScale: computedZoomScale,
-            searchText: $searchText,
-            searchFocused: $searchFocused,
-            isRepoFilterPresented: $isRepoFilterPresented,
-            isRepoFilterActive: isRepoFilterActive,
-            repoFilterActiveCount: repoFilterActiveCount,
-            repoFilterHelp: repoFilterHelp,
-            repoFilterPopover: { AnyView(repoFilterPopover) },
-            filterTokens: filterTokens,
-            isRefreshing: dataController.isRefreshing
-        )
+        Group {
+            if isRepoFilterPresented {
+                FiltersHeaderBarView(
+                    theme: theme,
+                    zoomScale: computedZoomScale,
+                    onBack: { isRepoFilterPresented = false }
+                )
+            } else {
+                HeaderBarView(
+                    theme: theme,
+                    zoomScale: computedZoomScale,
+                    searchText: $searchText,
+                    searchFocused: $searchFocused,
+                    isRepoFilterPresented: $isRepoFilterPresented,
+                    isRepoFilterActive: isRepoFilterActive,
+                    repoFilterActiveCount: repoFilterActiveCount,
+                    repoFilterHelp: repoFilterHelp
+                )
+            }
+        }
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -314,6 +300,7 @@ struct RootView: View {
         List(visibleItems, selection: selectionBinding) { item in
             PRRowView(
                 item: item,
+                isRefreshing: dataController.isRefreshing,
                 isSelected: item.id == dataController.selectedId,
                 onCopyPRURL: { copyToPasteboard($0); showToast("Copied PR link") },
                 onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI link") }
@@ -343,6 +330,7 @@ struct RootView: View {
         if hasCommandOnly {
             switch key {
             case "f":
+                guard !isRepoFilterPresented else { return false }
                 searchFocused = true
                 return true
             case "=", "+":
@@ -365,11 +353,20 @@ struct RootView: View {
         let hasNonShiftModifiers = flags.contains(.command) || flags.contains(.control) || flags.contains(.option) || flags.contains(.function)
         if hasNonShiftModifiers { return false }
 
+        if isRepoFilterPresented, key == "\u{1b}" { // escape
+            isRepoFilterPresented = false
+            return true
+        }
+
         if isTextInputActive() {
             if searchFocused, key == "\u{1b}" { // escape
                 searchFocused = false
                 return true
             }
+            return false
+        }
+
+        if isRepoFilterPresented {
             return false
         }
 
@@ -475,63 +472,77 @@ struct RootView: View {
         NSWorkspace.shared.open(checksURL)
     }
 
-    private var repoFilterPopover: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Filters")
-                    .font(.headline)
+    private var filtersView: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16 * computedZoomScale) {
+                filtersPRScopeCard
 
-                Spacer()
+                filtersReposCard
 
-                Button("Refresh") {
-                    Task { await dataController.refresh(reloadRepos: true) }
+                filtersAppearanceCard
+            }
+            .padding(.horizontal, filtersOuterPaddingX)
+            .padding(.vertical, filtersOuterPaddingY)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(theme.surface)
+    }
+
+    private var filtersOuterPaddingX: CGFloat { 20 * computedZoomScale }
+    private var filtersOuterPaddingY: CGFloat { 16 * computedZoomScale }
+
+    private var filtersPRScopeCard: some View {
+        filterCard {
+            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
+                Text("Pull Requests")
+                    .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+
+                PRDeckSegmentedControl(
+                    theme: theme,
+                    zoomScale: computedZoomScale,
+                    segments: [
+                        .init("attention", title: "Needs attention (\(needsAttentionCount))"),
+                        .init("all", title: "All (\(allCount))"),
+                    ],
+                    selection: Binding(
+                    get: { showAll ? "all" : "attention" },
+                    set: { showAll = $0 == "all" }
+                    )
+                )
+            }
+        }
+    }
+
+    private var filtersReposCard: some View {
+        filterCard {
+            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
+                HStack(alignment: .center, spacing: 10 * computedZoomScale) {
+                    Text("Repositories")
+                        .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
+                        .foregroundStyle(theme.textPrimary)
+
+                    Spacer()
+
+                    if isRepoFilterActive {
+                        repoFilterPill
+                    }
                 }
-                .controlSize(.small)
-                .prdeckInteractiveCursor()
-            }
 
-            Picker("", selection: Binding(
-                get: { showAll ? "all" : "attention" },
-                set: { showAll = $0 == "all" }
-            )) {
-                Text("Needs attention (\(needsAttentionCount))").tag("attention")
-                Text("All (\(allCount))").tag("all")
-            }
-            .pickerStyle(.segmented)
-            .prdeckInteractiveCursor()
-            .frame(width: 380)
+                PRDeckSegmentedControl(
+                    theme: theme,
+                    zoomScale: computedZoomScale,
+                    segments: [
+                        .init(RepoFilterMode.exclude.rawValue, title: "Exclude"),
+                        .init(RepoFilterMode.include.rawValue, title: "Include"),
+                    ],
+                    selection: $repoFilterModeRaw
+                )
+                .frame(width: 240)
 
-            Rectangle()
-                .fill(theme.divider)
-                .frame(height: 1)
+                filterSearchField
 
-            Text("Repositories")
-                .font(.headline)
-
-            Picker("", selection: $repoFilterModeRaw) {
-                Text("Exclude").tag(RepoFilterMode.exclude.rawValue)
-                Text("Include").tag(RepoFilterMode.include.rawValue)
-            }
-            .pickerStyle(.segmented)
-            .prdeckInteractiveCursor()
-            .frame(width: 240)
-
-            Toggle("Show repo/org logo", isOn: $showRepoAvatar)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .help("Shows the repository owner avatar on each PR row")
-                .prdeckInteractiveCursor()
-
-            TextField("Filter repos…", text: $repoFilterSearchText)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 360)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(repoFilterMode == .exclude ? "Hide repos" : "Show repos")
-                    .font(.subheadline)
-                    .foregroundStyle(theme.textSecondary)
-
-                HStack(spacing: 8) {
+                HStack(spacing: 8 * computedZoomScale) {
                     Button("Select All") {
                         switch repoFilterMode {
                         case .exclude:
@@ -561,43 +572,166 @@ struct RootView: View {
                     Spacer()
                 }
 
-                List(visibleReposForFiltering, id: \.self) { repo in
-                    Toggle(repo, isOn: .init(
-                        get: {
-                            switch repoFilterMode {
-                            case .exclude:
-                                return excludedRepoSet.contains(repo.lowercased())
-                            case .include:
-                                return includedRepoSet.contains(repo.lowercased())
-                            }
-                        },
-                        set: { isOn in
-                            switch repoFilterMode {
-                            case .exclude:
-                                var set = excludedRepoSet
-                                if isOn { set.insert(repo.lowercased()) } else { set.remove(repo.lowercased()) }
-                                setExcludedRepoSet(set)
-                            case .include:
-                                var set = includedRepoSet
-                                if isOn { set.insert(repo.lowercased()) } else { set.remove(repo.lowercased()) }
-                                setIncludedRepoSet(set)
-                            }
-                        }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .prdeckInteractiveCursor()
-                }
-                .frame(width: 380, height: 220)
+                repoToggleList
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
 
-            HStack {
-                Spacer()
-                Button("Done") { isRepoFilterPresented = false }
-                    .keyboardShortcut(.defaultAction)
-                    .controlSize(.regular)
+    private var filtersAppearanceCard: some View {
+        filterCard {
+            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
+                Text("Appearance")
+                    .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+
+                Toggle("Show repo/org logo", isOn: $showRepoAvatar)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .prdeckToolTip("Shows the repository owner avatar on each PR row")
                     .prdeckInteractiveCursor()
             }
         }
-        .padding(12)
+    }
+
+    private func filterCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 14 * computedZoomScale, style: .continuous)
+                    .fill(theme.surface2)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14 * computedZoomScale, style: .continuous)
+                            .stroke(theme.border, lineWidth: 1)
+                    )
+            )
+    }
+
+    private var repoFilterPill: some View {
+        let mode = repoFilterMode == .exclude ? "excluded" : "included"
+        let label = "Repo: \(repoFilterActiveCount) \(mode)"
+
+        return Button {
+            switch repoFilterMode {
+            case .exclude: setExcludedRepoSet([])
+            case .include: setIncludedRepoSet([])
+            }
+        } label: {
+            HStack(spacing: 6 * computedZoomScale) {
+                Text(label)
+                    .font(.system(size: 11.5 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textSecondary)
+
+                Image(systemName: "xmark")
+                    .font(.system(size: 9 * computedZoomScale, weight: .bold))
+                    .foregroundStyle(theme.textTertiary)
+                    .frame(width: 18 * computedZoomScale, height: 18 * computedZoomScale)
+                    .background(theme.surface, in: Circle())
+                    .overlay(Circle().stroke(theme.border, lineWidth: 1))
+            }
+            .padding(.leading, 10 * computedZoomScale)
+            .padding(.trailing, 6 * computedZoomScale)
+            .frame(height: 26 * computedZoomScale)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(theme.surface)
+                    .overlay(
+                        Capsule(style: .continuous)
+                            .stroke(theme.border, lineWidth: 1)
+                    )
+            )
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .prdeckInteractiveCursor()
+    }
+
+    private var filterSearchField: some View {
+        HStack(spacing: 6 * computedZoomScale) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12.5 * computedZoomScale))
+                .foregroundStyle(theme.textDisabled)
+
+            TextField("Filter repos…", text: $repoFilterSearchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12.5 * computedZoomScale))
+                .foregroundStyle(theme.textPrimary)
+        }
+        .padding(.horizontal, 10 * computedZoomScale)
+        .frame(height: 32 * computedZoomScale)
+        .background(
+            RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+                .fill(theme.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+                        .stroke(theme.border, lineWidth: 1)
+                )
+        )
+    }
+
+    private var repoToggleList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if visibleReposForFiltering.isEmpty {
+                Text("No repositories match your search.")
+                    .font(.system(size: 12 * computedZoomScale, weight: .medium))
+                    .foregroundStyle(theme.textTertiary)
+                    .padding(.vertical, 12 * computedZoomScale)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(visibleReposForFiltering, id: \.self) { repo in
+                        Toggle(repo, isOn: repoToggleBinding(for: repo))
+                            .toggleStyle(.checkbox)
+                            .font(.system(size: 12.5 * computedZoomScale, weight: .medium))
+                            .foregroundStyle(theme.textPrimary)
+                            .padding(.vertical, 7 * computedZoomScale)
+                            .padding(.horizontal, 10 * computedZoomScale)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .prdeckInteractiveCursor()
+
+                        if repo != visibleReposForFiltering.last {
+                            Rectangle()
+                                .fill(theme.divider)
+                                .frame(height: 1)
+                                .padding(.leading, 10 * computedZoomScale)
+                        }
+                    }
+                }
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+                .fill(theme.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+                        .stroke(theme.border, lineWidth: 1)
+                )
+        )
+    }
+
+    private func repoToggleBinding(for repo: String) -> Binding<Bool> {
+        Binding(
+            get: {
+                switch repoFilterMode {
+                case .exclude:
+                    return excludedRepoSet.contains(repo.lowercased())
+                case .include:
+                    return includedRepoSet.contains(repo.lowercased())
+                }
+            },
+            set: { isOn in
+                switch repoFilterMode {
+                case .exclude:
+                    var set = excludedRepoSet
+                    if isOn { set.insert(repo.lowercased()) } else { set.remove(repo.lowercased()) }
+                    setExcludedRepoSet(set)
+                case .include:
+                    var set = includedRepoSet
+                    if isOn { set.insert(repo.lowercased()) } else { set.remove(repo.lowercased()) }
+                    setIncludedRepoSet(set)
+                }
+            }
+        )
     }
 }

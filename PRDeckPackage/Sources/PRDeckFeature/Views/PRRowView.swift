@@ -5,6 +5,7 @@ struct PRRowView: View {
     @Environment(\.prdeckZoomScale) private var zoomScale
     @Environment(\.prdeckTheme) private var theme
     let item: PRItem
+    let isRefreshing: Bool
     let isSelected: Bool
     let onCopyPRURL: (URL) -> Void
     let onCopyCIURL: (URL) -> Void
@@ -275,11 +276,17 @@ struct PRRowView: View {
             }
         }
         .frame(width: slotSize, height: slotSize)
+        .overlay {
+            if isRefreshing, mergeGateVisual != .checksRunning {
+                PRDeckSpinner(color: color.opacity(0.95), size: slotSize, lineWidth: 2.2 * zoomScale)
+                    .allowsHitTesting(false)
+            }
+        }
 
         return label
             .contentShape(Rectangle())
             .prdeckInteractiveCursor()
-            .help(helpText)
+            .prdeckToolTip(helpText)
             .accessibilityAddTraits(.isButton)
             .highPriorityGesture(
                 TapGesture(count: 2)

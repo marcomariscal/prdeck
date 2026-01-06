@@ -1,6 +1,7 @@
+import AppKit
 import SwiftUI
 
-struct HeaderBarView<RepoFilterPopover: View>: View {
+struct HeaderBarView: View {
     let theme: PRDeckTheme
     let zoomScale: CGFloat
 
@@ -11,58 +12,41 @@ struct HeaderBarView<RepoFilterPopover: View>: View {
     let isRepoFilterActive: Bool
     let repoFilterActiveCount: Int
     let repoFilterHelp: String
-    @ViewBuilder let repoFilterPopover: () -> RepoFilterPopover
-
-    struct FilterToken: Identifiable, Equatable {
-        let id: String
-        let label: String
-        let onRemove: () -> Void
-
-        static func == (lhs: FilterToken, rhs: FilterToken) -> Bool {
-            lhs.id == rhs.id && lhs.label == rhs.label
-        }
-    }
-
-    let filterTokens: [FilterToken]
-    let isRefreshing: Bool
 
     @State private var isFilterHovered = false
 
     private var rowHeight: CGFloat { 52 * zoomScale }
     private var searchHeight: CGFloat { 36 * zoomScale }
     private var pillRadius: CGFloat { 11 * zoomScale }
-    private var iconHitSize: CGFloat { 34 * zoomScale }
+    private var iconHitSize: CGFloat { 30 * zoomScale }
+    private var statusIconSize: CGFloat { 18 * zoomScale }
 
-    // Keep header aligned with PRRowView layout constants.
-    private var rowPaddingX: CGFloat { 12 * zoomScale }
-    private var avatarColumnWidth: CGFloat { 40 * zoomScale }
+    private var toolbarPaddingLeading: CGFloat { 20 * zoomScale }
+    private var toolbarPaddingTrailing: CGFloat { (20 * zoomScale) + scrollerGutterWidth }
     private var statusColumnWidth: CGFloat { 44 * zoomScale }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8 * zoomScale) {
-            topRow
+    private var scrollerGutterWidth: CGFloat {
+        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    }
 
-            if !filterTokens.isEmpty {
-                filterTokensRow
-            }
-        }
-        .padding(.horizontal, rowPaddingX)
+    var body: some View {
+        topRow
+        .padding(.leading, toolbarPaddingLeading)
+        .padding(.trailing, toolbarPaddingTrailing)
         .padding(.vertical, 10 * zoomScale)
-        .background(theme.surface2)
+        .background(theme.surface)
     }
 
     private var topRow: some View {
         HStack(spacing: 0) {
-            Color.clear
-                .frame(width: avatarColumnWidth)
-
             search
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .frame(height: searchHeight)
-                .padding(.trailing, 10 * zoomScale)
+
+            Spacer(minLength: 16 * zoomScale)
 
             filterButton
-                .frame(width: statusColumnWidth, height: rowHeight, alignment: .trailing)
         }
         .frame(height: rowHeight)
     }
@@ -72,6 +56,7 @@ struct HeaderBarView<RepoFilterPopover: View>: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 13 * zoomScale))
                 .foregroundStyle(theme.textDisabled)
+                .frame(width: 14 * zoomScale, height: 14 * zoomScale)
 
             TextField("Search", text: $searchText)
                 .textFieldStyle(.plain)
@@ -91,59 +76,16 @@ struct HeaderBarView<RepoFilterPopover: View>: View {
         )
     }
 
-    private var filterTokensRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6 * zoomScale) {
-                ForEach(filterTokens) { token in
-                    filterTokenView(token)
-                }
-            }
-        }
-        .padding(.leading, avatarColumnWidth)
-    }
-
-    private func filterTokenView(_ token: FilterToken) -> some View {
-        HStack(spacing: 4 * zoomScale) {
-            Text(token.label)
-                .font(.system(size: 11 * zoomScale, weight: .medium))
-                .foregroundStyle(theme.textSecondary)
-
-            Button(action: token.onRemove) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 8 * zoomScale, weight: .bold))
-                    .foregroundStyle(theme.textTertiary)
-            }
-            .buttonStyle(.plain)
-            .prdeckInteractiveCursor()
-        }
-        .padding(.leading, 8 * zoomScale)
-        .padding(.trailing, 6 * zoomScale)
-        .frame(height: 22 * zoomScale)
-        .background(
-            Capsule(style: .continuous)
-                .fill(theme.surface)
-                .overlay(
-                    Capsule(style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
-                )
-        )
-    }
-
     private var filterButton: some View {
         Button {
-            isRepoFilterPresented = true
+            isRepoFilterPresented.toggle()
         } label: {
             ZStack(alignment: .topTrailing) {
-                ZStack {
-                    Image(systemName: "line.3.horizontal.decrease.circle")
-                        .font(.system(size: 16 * zoomScale))
-                        .foregroundStyle(isRepoFilterActive ? theme.textPrimary : theme.textTertiary)
-                        .opacity(isRepoFilterActive ? 1 : 0.8)
-
-                    if isRefreshing {
-                        PRDeckSpinner(color: theme.textSecondary, size: 16 * zoomScale, lineWidth: 2.4 * zoomScale)
-                    }
-                }
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: statusIconSize))
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(isRepoFilterActive ? theme.textPrimary : theme.textTertiary)
+                    .opacity(isRepoFilterActive ? 1 : 0.8)
 
                 if isRepoFilterActive {
                     Group {
@@ -159,7 +101,7 @@ struct HeaderBarView<RepoFilterPopover: View>: View {
                                 .frame(width: 6 * zoomScale, height: 6 * zoomScale)
                         }
                     }
-                    .offset(x: 5 * zoomScale, y: -5 * zoomScale)
+                    .offset(x: 4 * zoomScale, y: -4 * zoomScale)
                     .accessibilityHidden(true)
                 }
             }
@@ -167,12 +109,9 @@ struct HeaderBarView<RepoFilterPopover: View>: View {
             .background(isFilterHovered ? theme.rowHover : .clear, in: Circle())
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .frame(width: statusColumnWidth, height: rowHeight, alignment: .trailing)
         .prdeckInteractiveCursor()
         .onHover { isFilterHovered = $0 }
-        .popover(isPresented: $isRepoFilterPresented, arrowEdge: .top) {
-            repoFilterPopover()
-        }
-        .help(repoFilterHelp)
     }
 }
-

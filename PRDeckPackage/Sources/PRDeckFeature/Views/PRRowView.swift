@@ -1,68 +1,60 @@
+import AppKit
 import SwiftUI
 
 struct PRRowView: View {
     @Environment(\.prdeckZoomScale) private var zoomScale
     let item: PRItem
+    let isSelected: Bool
+
+    @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                HStack(spacing: 6) {
-                    repoAvatar
-                    Text("\(item.repository.nameWithOwner) #\(item.number)")
-                        .font(.system(size: 12 * zoomScale))
-                        .foregroundStyle(.secondary)
-                }
+        HStack(spacing: 0) {
+            // Column A: Fixed Avatar
+            authorAvatar
+                .frame(width: 40 * zoomScale, alignment: .leading)
 
-                Spacer()
-
-                Text(TimeAgo.string(from: item.updatedAt))
-                    .font(.system(size: 11 * zoomScale))
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                authorAvatar
+            // Column B: Fluid Content
+            VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.system(size: 13 * zoomScale))
-                    .lineLimit(2)
-                Spacer(minLength: 0)
+                    .font(.system(size: 13.5 * zoomScale, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+
+                HStack(alignment: .center, spacing: 0) {
+                    Text(item.repository.nameWithOwner)
+                        .foregroundStyle(.white.opacity(0.65))
+                    
+                    Text(" • #\(item.number)")
+                        .foregroundStyle(.white.opacity(0.5))
+                        .monospacedDigit()
+                    
+                    Text(" • ")
+                        .foregroundStyle(.white.opacity(0.3))
+                    
+                    Text(TimeAgo.string(from: item.updatedAt))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+                .font(.system(size: 11.5 * zoomScale, weight: .medium))
+                .lineLimit(1)
             }
+            
+            Spacer(minLength: 16)
 
-            HStack(spacing: 6) {
-                if item.isDraft {
-                    pill("Draft", color: .gray)
-                }
-
-                if item.mergeConflict {
-                    pill("Conflict", color: .red)
-                }
-
-                switch item.ciState {
-                case .failed:
-                    pill("CI Failed", color: .red)
-                case .running:
-                    spinnerPill("CI", color: .orange)
-                case .success:
-                    pill("CI OK", color: .green)
-                case .none, .unknown:
-                    EmptyView()
-                }
-
-                if item.isReviewRequestedToMe {
-                    pill("Review requested", color: .blue)
-                }
-
-                if item.reviewDecision == .changesRequested {
-                    pill("Changes requested", color: .red)
-                } else if item.reviewDecision == .reviewRequired {
-                    pill("Review required", color: .yellow)
-                } else if item.reviewDecision == .approved {
-                    pill("Approved", color: .green)
-                }
-            }
+            // Column C: Fixed Status Lane
+            statusLane
+                .frame(width: 100 * zoomScale, alignment: .trailing)
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(minHeight: 52 * zoomScale)
+        .contentShape(Rectangle())
+        .onHover { isHovered = $0 }
+        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
+        .listRowSeparator(.visible)
+        .listRowSeparatorTint(.white.opacity(0.08))
+        .listRowBackground(rowBackground)
     }
 
     @ViewBuilder
@@ -75,69 +67,126 @@ struct PRRowView: View {
                         .resizable()
                         .scaledToFill()
                 default:
-                    Color.gray.opacity(0.25)
+                    Color.gray.opacity(0.2)
                 }
             }
-            .frame(width: 22 * zoomScale, height: 22 * zoomScale)
+            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
             .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1))
+            .overlay(Circle().stroke(.white.opacity(0.1), lineWidth: 1))
             .accessibilityLabel(Text(item.author?.login ?? "Author"))
         } else {
-            Color.gray.opacity(0.25)
-                .frame(width: 22 * zoomScale, height: 22 * zoomScale)
+            Color.gray.opacity(0.2)
+                .frame(width: 28 * zoomScale, height: 28 * zoomScale)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1))
+                .overlay(Circle().stroke(.white.opacity(0.1), lineWidth: 1))
                 .accessibilityHidden(true)
         }
     }
 
     @ViewBuilder
     private var repoAvatar: some View {
-        if let url = item.repository.ownerAvatarUrl {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    Color.gray.opacity(0.25)
+        EmptyView()
+    }
+
+    private var statusLane: some View {
+        HStack(spacing: 0) {
+            // Slot 1: Conflict
+            ZStack {
+                if item.mergeConflict {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                        .font(.system(size: 12 * zoomScale))
+                        .help("Merge conflict")
                 }
             }
-            .frame(width: 16 * zoomScale, height: 16 * zoomScale)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white.opacity(0.08), lineWidth: 1))
-            .accessibilityLabel(Text(item.repository.ownerLogin ?? "Repository owner"))
-        } else {
-            Color.clear
-                .frame(width: 16 * zoomScale, height: 16 * zoomScale)
-                .accessibilityHidden(true)
+            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
+
+            // Slot 2: CI
+            ZStack {
+                switch item.ciState {
+                case .failed:
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.system(size: 12 * zoomScale))
+                case .success:
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green.opacity(0.8))
+                        .font(.system(size: 12 * zoomScale))
+                case .running:
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.mini)
+                        .tint(.yellow)
+                        .scaleEffect(0.7)
+                case .none, .unknown:
+                    EmptyView()
+                }
+            }
+            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
+            .help(ciHelpText)
+            .onTapGesture {
+                openCiUrl()
+            }
+
+            // Slot 3: Review
+            ZStack {
+                if item.reviewDecision == .changesRequested {
+                    Image(systemName: "xmark.octagon.fill")
+                        .foregroundStyle(.red)
+                } else if item.isReviewRequestedToMe {
+                    Image(systemName: "person.badge.exclamationmark")
+                        .foregroundStyle(.blue)
+                } else if item.reviewDecision == .approved {
+                    Image(systemName: "checkmark.circle")
+                        .foregroundStyle(.secondary.opacity(0.5))
+                } else if item.reviewDecision == .reviewRequired {
+                    Image(systemName: "circle.dashed")
+                        .foregroundStyle(.yellow)
+                }
+            }
+            .font(.system(size: 13 * zoomScale))
+            .frame(width: 28 * zoomScale, height: 28 * zoomScale)
+            .help(reviewHelpText)
         }
     }
 
-    private func pill(_ title: String, color: Color) -> some View {
-        Text(title)
-            .font(.system(size: 10 * zoomScale))
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(color.opacity(0.15))
-            .foregroundStyle(color)
-            .clipShape(Capsule())
+    private func openCiUrl() {
+        guard item.ciState == .failed || item.ciState == .running else { return }
+        if let url = item.failingCheckURL {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        if let checksURL = URL(string: item.url.absoluteString + "/checks") {
+            NSWorkspace.shared.open(checksURL)
+        }
     }
 
-    private func spinnerPill(_ title: String, color: Color) -> some View {
-        HStack(spacing: 6) {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .controlSize(.mini)
-                .tint(color)
-            Text(title)
+    private var ciHelpText: String {
+        switch item.ciState {
+        case .failed: return "CI failed"
+        case .running: return "CI running"
+        case .success: return "CI passed"
+        default: return ""
         }
-        .font(.system(size: 10 * zoomScale))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(color.opacity(0.15))
-        .foregroundStyle(color)
-        .clipShape(Capsule())
+    }
+
+    private var reviewHelpText: String {
+        if item.reviewDecision == .changesRequested { return "Changes requested" }
+        if item.isReviewRequestedToMe { return "Review requested (to you)" }
+        if item.reviewDecision == .approved { return "Approved" }
+        if item.reviewDecision == .reviewRequired { return "Review required" }
+        return ""
+    }
+
+    private var rowBackground: some View {
+        ZStack {
+            if isSelected {
+                Color.white.opacity(0.12)
+            } else if isHovered {
+                Color.white.opacity(0.06)
+            } else {
+                Color.clear
+            }
+        }
     }
 }

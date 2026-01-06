@@ -5,13 +5,24 @@ struct RootView: View {
     @ObservedObject var dataController: DataController
 
     @AppStorage(PRDeckDefaultsKey.showAll) private var showAll = false
+    @AppStorage(PRDeckDefaultsKey.repoFilterMode) private var repoFilterModeRaw = RepoFilterMode.exclude.rawValue
     @AppStorage(PRDeckDefaultsKey.excludedRepos) private var excludedRepos = ""
+    @AppStorage(PRDeckDefaultsKey.includedRepos) private var includedRepos = ""
     @AppStorage(PRDeckDefaultsKey.zoomStep) private var zoomStep = 0
     @State private var searchText = ""
     @FocusState private var searchFocused: Bool
     @State private var keyMonitor: KeyEventMonitor?
     @State private var isRepoFilterPresented = false
     @State private var repoFilterSearchText = ""
+
+    private enum RepoFilterMode: String {
+        case exclude
+        case include
+    }
+
+    private var repoFilterMode: RepoFilterMode {
+        RepoFilterMode(rawValue: repoFilterModeRaw) ?? .exclude
+    }
 
     private var computedZoomScale: CGFloat {
         let clamped = max(-3, min(6, zoomStep))
@@ -27,8 +38,24 @@ struct RootView: View {
         return Set(normalized)
     }
 
+    private var includedRepoSet: Set<String> {
+        let normalized = includedRepos
+            .replacingOccurrences(of: "\n", with: ",")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty }
+        return Set(normalized)
+    }
+
     private func setExcludedRepoSet(_ set: Set<String>) {
         excludedRepos = set
+            .map { $0.lowercased() }
+            .sorted()
+            .joined(separator: "\n")
+    }
+
+    private func setIncludedRepoSet(_ set: Set<String>) {
+        includedRepos = set
             .map { $0.lowercased() }
             .sorted()
             .joined(separator: "\n")
@@ -48,7 +75,13 @@ struct RootView: View {
     private var visibleItems: [PRItem] {
         let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let filtered = dataController.items.filter { item in
-            if excludedRepoSet.contains(item.repository.nameWithOwner.lowercased()) { return false }
+            let repo = item.repository.nameWithOwner.lowercased()
+            switch repoFilterMode {
+            case .exclude:
+                if excludedRepoSet.contains(repo) { return false }
+            case .include:
+                if !includedRepoSet.isEmpty, !includedRepoSet.contains(repo) { return false }
+            }
             if !showAll, !item.needsAttention { return false }
             if q.isEmpty { return true }
 
@@ -62,9 +95,39 @@ struct RootView: View {
         return filtered
     }
 
+    private var selectionBinding: Binding<PRItem.ID?> {
+        Binding(
+            get: { dataController.selectedId },
+            set: { newValue in
+                DispatchQueue.main.async {
+                    dataController.selectedId = newValue
+                }
+            }
+        )
+    }
+
+    private var needsAttentionCount: Int {
+        dataController.items.filter { $0.needsAttention }.count
+    }
+
+    private var allCount: Int {
+        dataController.items.count
+    }
+
+    private var isRepoFilterActive: Bool {
+        switch repoFilterMode {
+        case .exclude:
+            return !excludedRepoSet.isEmpty
+        case .include:
+            return !includedRepoSet.isEmpty
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            Divider()
+                .opacity(0.1)
 
             if let error = dataController.lastError {
                 errorBanner(error)
@@ -72,43 +135,77 @@ struct RootView: View {
 
             list
         }
-        .onAppear { installKeyMonitor() }
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            migrateRepoFilterModeIfNeeded()
+            installKeyMonitor()
+        }
         .onDisappear { keyMonitor?.stop() }
         .environment(\.prdeckZoomScale, computedZoomScale)
     }
 
-    private var topBar: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                TextField("Search", text: $searchText)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($searchFocused)
-                    .font(.system(size: 13 * computedZoomScale))
+    private func migrateRepoFilterModeIfNeeded() {
+        if UserDefaults.standard.object(forKey: PRDeckDefaultsKey.repoFilterMode) != nil { return }
 
-                Picker("", selection: $showAll) {
-                    Text("Needs attention").tag(false)
-                    Text("Show all").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 220)
-
-                Button("Filter…") {
-                    isRepoFilterPresented = true
-                }
-                .buttonStyle(.bordered)
-                .popover(isPresented: $isRepoFilterPresented, arrowEdge: .top) {
-                    repoFilterPopover
-                }
-
-                if dataController.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
-            .controlSize(.large)
+        if !excludedRepoSet.isEmpty {
+            repoFilterModeRaw = RepoFilterMode.exclude.rawValue
+        } else if !includedRepoSet.isEmpty {
+            repoFilterModeRaw = RepoFilterMode.include.rawValue
+        } else {
+            repoFilterModeRaw = RepoFilterMode.exclude.rawValue
         }
-        .padding(10)
-        .background(.regularMaterial)
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 12) {
+            TextField("Search", text: $searchText)
+                .textFieldStyle(.roundedBorder)
+                .focused($searchFocused)
+                .font(.system(size: 13 * computedZoomScale))
+                .frame(maxWidth: 300)
+
+            Spacer()
+
+            Picker("", selection: $showAll) {
+                Text("Needs attention (\(needsAttentionCount))").tag(false)
+                Text("All (\(allCount))").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 280)
+
+            Spacer()
+
+            Button {
+                isRepoFilterPresented = true
+            } label: {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 15 * computedZoomScale))
+                    .foregroundStyle(isRepoFilterActive ? .primary : .secondary)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $isRepoFilterPresented, arrowEdge: .top) {
+                repoFilterPopover
+            }
+            .help("Filter repositories")
+
+            if dataController.isRefreshing {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button {
+                    Task { await dataController.refresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14 * computedZoomScale))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Refresh")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(nsColor: .windowBackgroundColor))
     }
 
     private func errorBanner(_ error: String) -> some View {
@@ -126,11 +223,12 @@ struct RootView: View {
     }
 
     private var list: some View {
-        List(visibleItems, selection: $dataController.selectedId) { item in
-            PRRowView(item: item)
+        List(visibleItems, selection: selectionBinding) { item in
+            PRRowView(item: item, isSelected: item.id == dataController.selectedId)
                 .tag(item.id)
         }
         .listStyle(.inset)
+        .scrollContentBackground(.hidden)
     }
 
     private func installKeyMonitor() {
@@ -233,57 +331,47 @@ struct RootView: View {
 
     private var repoFilterPopover: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Exclude repositories")
+            Text("Repositories")
                 .font(.headline)
+
+            Picker("", selection: $repoFilterModeRaw) {
+                Text("Exclude").tag(RepoFilterMode.exclude.rawValue)
+                Text("Include").tag(RepoFilterMode.include.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 240)
 
             TextField("Filter repos…", text: $repoFilterSearchText)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 360)
 
-            if !excludedRepoSet.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Excluded")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-
-                    ForEach(excludedRepoSet.sorted(), id: \.self) { repo in
-                        HStack {
-                            Text(repo)
-                                .font(.system(.body, design: .monospaced))
-                                .lineLimit(1)
-                            Spacer()
-                            Button("Remove") {
-                                var set = excludedRepoSet
-                                set.remove(repo)
-                                setExcludedRepoSet(set)
-                            }
-                            .controlSize(.small)
-                        }
-                    }
-                }
-            }
-
             VStack(alignment: .leading, spacing: 6) {
-                Text("Available")
+                Text(repoFilterMode == .exclude ? "Hide selected repos" : "Show only selected repos (none = all)")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
                 HStack(spacing: 8) {
                     Button("Select All") {
-                        var set = excludedRepoSet
-                        for repo in visibleReposForFiltering {
-                            set.insert(repo.lowercased())
+                        switch repoFilterMode {
+                        case .exclude:
+                            var set = excludedRepoSet
+                            for repo in visibleReposForFiltering { set.insert(repo.lowercased()) }
+                            setExcludedRepoSet(set)
+                        case .include:
+                            var set = includedRepoSet
+                            for repo in visibleReposForFiltering { set.insert(repo.lowercased()) }
+                            setIncludedRepoSet(set)
                         }
-                        setExcludedRepoSet(set)
                     }
                     .controlSize(.small)
 
-                    Button("Select None") {
-                        var set = excludedRepoSet
-                        for repo in visibleReposForFiltering {
-                            set.remove(repo.lowercased())
+                    Button("Clear") {
+                        switch repoFilterMode {
+                        case .exclude:
+                            setExcludedRepoSet([])
+                        case .include:
+                            setIncludedRepoSet([])
                         }
-                        setExcludedRepoSet(set)
                     }
                     .controlSize(.small)
 
@@ -292,15 +380,25 @@ struct RootView: View {
 
                 List(visibleReposForFiltering, id: \.self) { repo in
                     Toggle(repo, isOn: .init(
-                        get: { excludedRepoSet.contains(repo.lowercased()) },
-                        set: { isOn in
-                            var set = excludedRepoSet
-                            if isOn {
-                                set.insert(repo.lowercased())
-                            } else {
-                                set.remove(repo.lowercased())
+                        get: {
+                            switch repoFilterMode {
+                            case .exclude:
+                                return excludedRepoSet.contains(repo.lowercased())
+                            case .include:
+                                return includedRepoSet.contains(repo.lowercased())
                             }
-                            setExcludedRepoSet(set)
+                        },
+                        set: { isOn in
+                            switch repoFilterMode {
+                            case .exclude:
+                                var set = excludedRepoSet
+                                if isOn { set.insert(repo.lowercased()) } else { set.remove(repo.lowercased()) }
+                                setExcludedRepoSet(set)
+                            case .include:
+                                var set = includedRepoSet
+                                if isOn { set.insert(repo.lowercased()) } else { set.remove(repo.lowercased()) }
+                                setIncludedRepoSet(set)
+                            }
                         }
                     ))
                     .toggleStyle(.checkbox)
@@ -309,11 +407,6 @@ struct RootView: View {
             }
 
             HStack {
-                Button("Clear") {
-                    setExcludedRepoSet([])
-                }
-                .controlSize(.regular)
-
                 Spacer()
                 Button("Done") { isRepoFilterPresented = false }
                     .keyboardShortcut(.defaultAction)

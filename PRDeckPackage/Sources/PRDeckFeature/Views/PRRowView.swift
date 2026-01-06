@@ -194,8 +194,8 @@ struct PRRowView: View {
     }
 
     private var statusLane: some View {
-        let slotSize = 28 * zoomScale
-        let iconSize = 16 * zoomScale
+        let slotSize = 30 * zoomScale
+        let iconSize = 18 * zoomScale
 
         let color: Color = {
             switch mergeGateVisual {
@@ -253,7 +253,7 @@ struct PRRowView: View {
         let label: some View = Group {
             switch mergeGateVisual {
             case .checksRunning:
-                PRDeckSpinner(color: color, size: iconSize, lineWidth: 2.75 * zoomScale)
+                PRDeckSpinner(color: color, size: iconSize, lineWidth: 3.0 * zoomScale)
             case .clean:
                 Image(systemName: "checkmark.circle.fill")
             case .failingChecks:

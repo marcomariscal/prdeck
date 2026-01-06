@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-final class WindowController: NSWindowController, NSWindowDelegate {
+final class WindowController: NSWindowController, NSWindowDelegate, NSToolbarDelegate {
     private enum DefaultsKey {
         static let windowFrame = "windowFrame"
         static let pinnedCorner = "pinnedCorner"
@@ -15,6 +15,10 @@ final class WindowController: NSWindowController, NSWindowDelegate {
     private enum PinnedCorner: String {
         case topLeft
         case topRight
+    }
+
+    private enum ToolbarItemIdentifier {
+        static let title = NSToolbarItem.Identifier("prdeck.title")
     }
 
     convenience init<Content: View>(rootView: Content) {
@@ -35,8 +39,47 @@ final class WindowController: NSWindowController, NSWindowDelegate {
 
         self.init(window: window)
 
+        window.titleVisibility = .hidden
+        installToolbar(into: window)
+
         window.delegate = self
         restoreFrameAndPin()
+    }
+
+    private func installToolbar(into window: NSWindow) {
+        let toolbar = NSToolbar(identifier: "prdeck.toolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+        toolbar.autosavesConfiguration = false
+        toolbar.showsBaselineSeparator = false
+        window.toolbar = toolbar
+        window.toolbarStyle = .unifiedCompact
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [
+            .flexibleSpace,
+            ToolbarItemIdentifier.title,
+        ]
+    }
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        [
+            .flexibleSpace,
+            ToolbarItemIdentifier.title,
+            .flexibleSpace,
+        ]
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        guard itemIdentifier == ToolbarItemIdentifier.title else { return nil }
+
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        let hostingView = NSHostingView(rootView: TitlebarTitleView())
+        hostingView.frame = .init(x: 0, y: 0, width: 160, height: 24)
+        item.view = hostingView
+        return item
     }
 
     func windowDidMove(_ notification: Notification) {

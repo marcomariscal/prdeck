@@ -93,6 +93,10 @@ struct RootView: View {
             byLower[name.lowercased()] = name
         }
 
+        for name in dataController.knownRepos {
+            byLower[name.lowercased()] = name
+        }
+
         for saved in excludedRepoSet.union(includedRepoSet) {
             if byLower[saved] == nil {
                 byLower[saved] = saved
@@ -287,7 +291,7 @@ struct RootView: View {
             .help("Filter repositories")
 
             Button {
-                Task { await dataController.refresh() }
+                Task { await dataController.refresh(reloadRepos: true) }
             } label: {
                 ZStack {
                     Image(systemName: "arrow.clockwise")
@@ -398,7 +402,7 @@ struct RootView: View {
                 .font(.system(size: 11 * computedZoomScale))
                 .foregroundStyle(theme.textPrimary)
             Spacer()
-            Button("Retry") { Task { await dataController.refresh() } }
+            Button("Retry") { Task { await dataController.refresh(reloadRepos: true) } }
                 .controlSize(.small)
                 .prdeckInteractiveCursor()
         }
@@ -475,7 +479,7 @@ struct RootView: View {
             openSelectedPR()
             return true
         case "r":
-            Task { await dataController.refresh() }
+            Task { await dataController.refresh(reloadRepos: true) }
             return true
         case "t":
             showAll.toggle()

@@ -6,23 +6,30 @@ public final class DataController: ObservableObject {
     @Published public private(set) var isRefreshing = false
     @Published public var lastError: String?
     @Published public var selectedId: PRItem.ID?
+    @Published public private(set) var knownRepos: [String] = []
 
     private let dataSource: GitHubDataSource
     private let snapshotStore: SnapshotStore
+    private let repoSnapshotStore: RepoSnapshotStore
     private var priorOrder: [PRItem.ID] = []
     private var refreshTask: Task<Void, Never>?
 
     public convenience init() {
-        self.init(dataSource: .init(), snapshotStore: .init())
+        self.init(dataSource: .init(), snapshotStore: .init(), repoSnapshotStore: .init())
     }
 
-    init(dataSource: GitHubDataSource, snapshotStore: SnapshotStore) {
+    init(dataSource: GitHubDataSource, snapshotStore: SnapshotStore, repoSnapshotStore: RepoSnapshotStore) {
         self.dataSource = dataSource
         self.snapshotStore = snapshotStore
+        self.repoSnapshotStore = repoSnapshotStore
 
         if let snapshot = snapshotStore.loadSnapshot() {
             items = snapshot
             priorOrder = snapshot.map(\.id)
+        }
+
+        if let repos = repoSnapshotStore.loadRepos() {
+            knownRepos = repos
         }
     }
 
@@ -45,12 +52,17 @@ public final class DataController: ObservableObject {
         }
     }
 
-    public func refresh() async {
+    public func refresh(reloadRepos: Bool = false) async {
         if isRefreshing { return }
         isRefreshing = true
         lastError = nil
 
         defer { isRefreshing = false }
+
+        let reposTask: Task<[String]?, Never>? = {
+            guard reloadRepos else { return nil }
+            return Task { try? await dataSource.fetchRepoDirectory() }
+        }()
 
         do {
             let fetched = try await dataSource.fetchAll()
@@ -63,6 +75,11 @@ public final class DataController: ObservableObject {
             }
         } catch {
             lastError = String(describing: error)
+        }
+
+        if let repos = await reposTask?.value, !repos.isEmpty {
+            knownRepos = repos
+            repoSnapshotStore.saveRepos(repos)
         }
     }
 

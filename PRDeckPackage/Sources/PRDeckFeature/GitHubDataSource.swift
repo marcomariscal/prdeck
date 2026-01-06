@@ -121,57 +121,113 @@ public struct GitHubDataSource: Sendable {
 
         return (items, pageInfo)
     }
+
+    public func fetchRepoDirectory(perOwnerLimit: Int = 2000) async throws -> [String] {
+        guard let ghPath = ProcessRunner.findExecutable(named: "gh") else {
+            throw GitHubDataSourceError(message: "GitHub CLI (`gh`) not found. Install it and run `gh auth login`.")
+        }
+
+        let viewer = try await fetchViewerLogin(ghPath: ghPath)
+        let orgs = (try? await fetchOrgLogins(ghPath: ghPath)) ?? []
+        let owners = [viewer] + orgs
+
+        var repos: [String] = []
+        repos.reserveCapacity(512)
+
+        for owner in owners {
+            do {
+                let data = try await ProcessRunner.run(
+                    ghPath,
+                    arguments: [
+                        "repo", "list", owner,
+                        "--limit", "\(perOwnerLimit)",
+                        "--json", "nameWithOwner",
+                    ]
+                )
+
+                let decoded = try JSONDecoder().decode([RepoListItem].self, from: data)
+                repos.append(contentsOf: decoded.map(\.nameWithOwner))
+            } catch {
+                continue
+            }
+        }
+
+        return Array(Set(repos))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    private func fetchViewerLogin(ghPath: String) async throws -> String {
+        let data = try await ProcessRunner.run(ghPath, arguments: ["api", "user"])
+        return try JSONDecoder().decode(ViewerResponse.self, from: data).login
+    }
+
+    private func fetchOrgLogins(ghPath: String) async throws -> [String] {
+        let data = try await ProcessRunner.run(
+            ghPath,
+            arguments: [
+                "api",
+                "user/orgs",
+                "--paginate",
+                "--slurp",
+            ]
+        )
+
+        let pages = try JSONDecoder().decode([[OrgResponse]].self, from: data)
+        let orgs = pages.flatMap { $0 }.map(\.login)
+        return Array(Set(orgs))
+            .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
 }
 
 private extension GitHubDataSource {
     static let graphQLQuery =
     #"""
-	    query($searchQuery: String!, $endCursor: String) {
-	      search(query: $searchQuery, type: ISSUE, first: 100, after: $endCursor) {
-	        pageInfo { hasNextPage endCursor }
-	        nodes {
-	          ... on PullRequest {
-	            id
-	            number
-	            title
-	            url
-	            updatedAt
-	            isDraft
-	            mergeable
-	            mergeStateStatus
-	            reviewDecision
-	            author { login avatarUrl }
-	            repository { nameWithOwner url owner { login avatarUrl } }
-	            commits(last: 1) {
-	              nodes {
-	                commit {
-	                  statusCheckRollup {
-	                    state
-	                    contexts(first: 50) {
-	                      nodes {
-	                        __typename
-	                        ... on CheckRun {
-	                          name
-	                          conclusion
-	                          status
-	                          detailsUrl
-	                        }
-	                        ... on StatusContext {
-	                          context
-	                          state
-	                          targetUrl
-	                        }
-	                      }
-	                    }
-	                  }
-	                }
-	              }
-	            }
-	          }
-	        }
-	      }
-	    }
-	    """#
+        query($searchQuery: String!, $endCursor: String) {
+          search(query: $searchQuery, type: ISSUE, first: 100, after: $endCursor) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              ... on PullRequest {
+                id
+                number
+                title
+                url
+                updatedAt
+                isDraft
+                mergeable
+                mergeStateStatus
+                reviewDecision
+                author { login avatarUrl }
+                repository { nameWithOwner url owner { login avatarUrl } }
+                commits(last: 1) {
+                  nodes {
+                    commit {
+                      statusCheckRollup {
+                        state
+                        contexts(first: 50) {
+                          nodes {
+                            __typename
+                            ... on CheckRun {
+                              name
+                              conclusion
+                              status
+                              detailsUrl
+                            }
+                            ... on StatusContext {
+                              context
+                              state
+                              targetUrl
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+    """#
 }
 
 private struct GraphQLResponse: Decodable {
@@ -197,23 +253,35 @@ private struct PageInfo: Decodable {
     let endCursor: String?
 }
 
-	private struct PullRequestNode: Decodable {
-	    let id: String
-	    let number: Int
-	    let title: String
-	    let url: URL
-	    let updatedAt: Date
-	    let isDraft: Bool
-	    let mergeable: PRItem.Mergeable?
-	    let mergeStateStatus: PRItem.MergeStateStatus?
-	    let reviewDecision: PRItem.ReviewDecision?
-	    let author: AuthorNode?
-	    let repository: RepoNode
-	    let commits: CommitsNode
+private struct PullRequestNode: Decodable {
+    let id: String
+    let number: Int
+    let title: String
+    let url: URL
+    let updatedAt: Date
+    let isDraft: Bool
+    let mergeable: PRItem.Mergeable?
+    let mergeStateStatus: PRItem.MergeStateStatus?
+    let reviewDecision: PRItem.ReviewDecision?
+    let author: AuthorNode?
+    let repository: RepoNode
+    let commits: CommitsNode
 
     var statusCheckRollup: PRItem.StatusCheckRollup? {
         commits.nodes.first?.commit.statusCheckRollup
     }
+}
+
+private struct ViewerResponse: Decodable {
+    let login: String
+}
+
+private struct OrgResponse: Decodable {
+    let login: String
+}
+
+private struct RepoListItem: Decodable {
+    let nameWithOwner: String
 }
 
 private struct AuthorNode: Decodable {

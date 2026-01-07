@@ -1,0 +1,45 @@
+name: Feature request
+description: Suggest an idea or improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the idea!
+
+        A great request answers: **who is it for**, **what it enables**, and **what “done” looks like**.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem are you trying to solve?
+      placeholder: "Example: I want to separate client repos from personal repos"
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What would you like PRDeck to do?
+      placeholder: "Example: Add workspaces with separate filters and themes"
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: "Example: Using separate include/exclude lists manually"
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Extra context
+      description: Mockups, screenshots, or examples help.
+    validations:
+      required: false

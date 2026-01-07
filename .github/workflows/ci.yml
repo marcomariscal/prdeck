@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Xcode version
+        run: xcodebuild -version
+
+      - name: Build app
+        run: xcodebuild -workspace PRDeck.xcworkspace -scheme PRDeck -destination 'platform=macOS' build
+
+      - name: Run Swift package tests
+        run: swift test --package-path PRDeckPackage

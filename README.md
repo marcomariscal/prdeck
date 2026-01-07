@@ -14,7 +14,9 @@ It’s built for fast triage: copy links with a click, open with a double-click,
 
 ## Screenshot
 
-Coming soon.
+<p align="center">
+  <img src="docs/screenshot.svg" width="420" alt="PRDeck screenshot (demo)" />
+</p>
 
 ## Requirements
 

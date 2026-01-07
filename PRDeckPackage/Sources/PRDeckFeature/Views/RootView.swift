@@ -20,6 +20,7 @@ struct RootView: View {
     @State private var measuredHeights: [String: CGFloat] = [:]
     @State private var refreshIndicatorTask: Task<Void, Never>?
     @State private var showRefreshIndicators = false
+    @State private var isThemeMenuHovered = false
 
     private enum RepoFilterMode: String {
         case exclude
@@ -629,24 +630,54 @@ struct RootView: View {
 
                     Spacer()
 
-                    Picker("Theme", selection: $themePaletteRaw) {
-                        ForEach(PRDeckPalette.allCases) { palette in
-                            Text(palette.displayName).tag(palette.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .controlSize(.small)
-                    .prdeckInteractiveCursor()
+                    themeMenu
                 }
 
                 Toggle("Show repo/org logo", isOn: $showRepoAvatar)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .prdeckToolTip("Shows the repository owner avatar on each PR row")
                     .prdeckInteractiveCursor()
             }
         }
+    }
+
+    private var themeMenu: some View {
+        Menu {
+            ForEach(PRDeckPalette.allCases) { palette in
+                Button {
+                    themePaletteRaw = palette.rawValue
+                } label: {
+                    if palette.rawValue == themePaletteRaw {
+                        Label(palette.displayName, systemImage: "checkmark")
+                    } else {
+                        Text(palette.displayName)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 8 * computedZoomScale) {
+                Text(themePalette.displayName)
+                    .font(.system(size: 12.5 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textPrimary)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10.5 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textTertiary)
+            }
+            .padding(.horizontal, 10 * computedZoomScale)
+            .frame(height: 28 * computedZoomScale)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(isThemeMenuHovered ? theme.rowHover : theme.surface)
+                    .overlay(Capsule(style: .continuous).stroke(theme.border, lineWidth: 1))
+            )
+            .contentShape(Capsule(style: .continuous))
+            .onHover { isThemeMenuHovered = $0 }
+        }
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+        .controlSize(.small)
+        .prdeckInteractiveCursor()
     }
 
     private func filterCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {

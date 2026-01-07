@@ -1,129 +1,106 @@
-# PRDeck - macOS App
+# PRDeck
 
-A modern macOS application using a **workspace + SPM package** architecture for clean separation between app shell and feature code.
+<p align="center">
+  <img src="PRDeck/Assets.xcassets/AppIcon.appiconset/icon_512x512.png" width="128" height="128" alt="PRDeck icon" />
+</p>
 
-## Project Architecture
+A keyboard-first PR inbox for GitHub on macOS — powered by the GitHub CLI (`gh`).
 
-```
-PRDeck/
-├── PRDeck.xcworkspace/              # Open this file in Xcode
-├── PRDeck.xcodeproj/                # App shell project
-├── PRDeck/                          # App target (minimal)
-│   ├── Assets.xcassets/                # App-level assets (icons, colors)
-│   ├── PRDeckApp.swift              # App entry point
-│   ├── PRDeck.entitlements          # App sandbox settings
-│   └── PRDeck.xctestplan            # Test configuration
-├── PRDeckPackage/                   # 🚀 Primary development area
-│   ├── Package.swift                   # Package configuration
-│   ├── Sources/PRDeckFeature/       # Your feature code
-│   └── Tests/PRDeckFeatureTests/    # Unit tests
-└── PRDeckUITests/                   # UI automation tests
-```
+PRDeck shows:
+- Pull requests you authored (`author:@me`)
+- Pull requests requesting your review (`review-requested:@me`)
 
-## Key Architecture Points
+It’s built for fast triage: copy links with a click, open with a double-click, and navigate with the keyboard.
 
-### Workspace + SPM Structure
-- **App Shell**: `PRDeck/` contains minimal app lifecycle code
-- **Feature Code**: `PRDeckPackage/Sources/PRDeckFeature/` is where most development happens
-- **Separation**: Business logic lives in the SPM package, app target just imports and displays it
+## Screenshot
 
-### Buildable Folders (Xcode 16)
-- Files added to the filesystem automatically appear in Xcode
-- No need to manually add files to project targets
-- Reduces project file conflicts in teams
+Coming soon.
 
-### App Sandbox
-The app is sandboxed by default with basic file access permissions. Modify `PRDeck.entitlements` to add capabilities as needed.
+## Requirements
 
-## Development Notes
+- macOS 14+
+- GitHub CLI installed: `gh`
+- Logged in: `gh auth login`
 
-### Code Organization
-Most development happens in `PRDeckPackage/Sources/PRDeckFeature/` - organize your code as you prefer.
+## Install
 
-### Public API Requirements
-Types exposed to the app target need `public` access:
-```swift
-public struct SettingsView: View {
-    public init() {}
-    
-    public var body: some View {
-        // Your view code
-    }
-}
-```
+There aren’t prebuilt releases yet.
 
-### Adding Dependencies
-Edit `PRDeckPackage/Package.swift` to add SPM dependencies:
-```swift
-dependencies: [
-    .package(url: "https://github.com/example/SomePackage", from: "1.0.0")
-],
-targets: [
-    .target(
-        name: "PRDeckFeature",
-        dependencies: ["SomePackage"]
-    ),
-]
-```
+For now, build from source:
+1. Clone the repo
+2. Open `PRDeck.xcworkspace` in Xcode
+3. Build & run the `PRDeck` scheme
 
-### Test Structure
-- **Unit Tests**: `PRDeckPackage/Tests/PRDeckFeatureTests/` (Swift Testing framework)
-- **UI Tests**: `PRDeckUITests/` (XCUITest framework)
-- **Test Plan**: `PRDeck.xctestplan` coordinates all tests
+## Usage
 
-## Configuration
+### Mouse
+- Row: **click** copies PR link, **double-click** opens PR
+- Status icon: **click** copies the relevant link (PR/checks), **double-click** opens it
+- Right-click a row for a context menu (copy/open PR, checks, CI logs)
 
-### XCConfig Build Settings
-Build settings are managed through **XCConfig files** in `Config/`:
-- `Config/Shared.xcconfig` - Common settings (bundle ID, versions, deployment target)
-- `Config/Debug.xcconfig` - Debug-specific settings  
-- `Config/Release.xcconfig` - Release-specific settings
-- `Config/Tests.xcconfig` - Test-specific settings
+### Keyboard
+- `⌘F`: focus search (press `Esc` to blur)
+- `⌘R` (or `r`): refresh
+- `j` / `k`: move selection
+- `Enter`: open selected PR
+- `c`: open checks for selected PR
+- `f`: open failing check (if available)
+- `t`: toggle “Needs attention” vs “All”
+- `⌘+` / `⌘-` / `⌘0`: zoom in / out / reset
+- `Esc`: close the filters screen
 
-### App Sandbox & Entitlements
-The app is sandboxed by default with basic file access. Edit `PRDeck/PRDeck.entitlements` to add capabilities:
-```xml
-<key>com.apple.security.files.user-selected.read-write</key>
-<true/>
-<key>com.apple.security.network.client</key>
-<true/>
-<!-- Add other entitlements as needed -->
+### Filters & Appearance
+Use the filter icon to open the filters screen:
+- PR scope: needs attention vs all
+- Repo filtering: include or exclude repositories
+- Appearance: theme + show/hide repo/org avatar
+
+## Data & Privacy
+
+PRDeck does not collect analytics or send telemetry.
+
+It shells out to `gh` for GitHub data, and caches a local snapshot for faster startup.
+See `PRIVACY.md` for details.
+
+## Troubleshooting
+
+### “GitHub CLI (`gh`) not found”
+
+Install it with Homebrew:
+
+```sh
+brew install gh
 ```
 
-## macOS-Specific Features
+PRDeck looks for `gh` in your `PATH` plus common locations like `/opt/homebrew/bin`, `/usr/local/bin`, and `/usr/bin`.
 
-### Window Management
-Add multiple windows and settings panels:
-```swift
-@main
-struct PRDeckApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-        }
-        
-        Settings {
-            SettingsView()
-        }
-    }
-}
+### Authentication errors
+
+Make sure you’re logged in:
+
+```sh
+gh auth status
+gh auth login
 ```
 
-### Asset Management
-- **App-Level Assets**: `PRDeck/Assets.xcassets/` (app icon with multiple sizes, accent color)
-- **Feature Assets**: Add `Resources/` folder to SPM package if needed
+## Development
 
-### SPM Package Resources
-To include assets in your feature package:
-```swift
-.target(
-    name: "PRDeckFeature",
-    dependencies: [],
-    resources: [.process("Resources")]
-)
+This repo uses a workspace + Swift Package setup:
+
+```
+PRDeck.xcworkspace/              # Open this file in Xcode
+PRDeck/                          # App shell (minimal)
+PRDeckPackage/Sources/PRDeckFeature/  # Primary feature code
+PRDeckUITests/                   # UI tests
 ```
 
-## Notes
+## Roadmap (ideas)
 
-### Generated with XcodeBuildMCP
-This project was scaffolded using [XcodeBuildMCP](https://github.com/cameroncooke/XcodeBuildMCP), which provides tools for AI-assisted macOS development workflows.
+- Signed + notarized releases (zip/dmg)
+- Homebrew cask
+- Optional menu bar mode + badge/notifications
+- Optional “Open at login”
+
+## License
+
+See `LICENSE`.

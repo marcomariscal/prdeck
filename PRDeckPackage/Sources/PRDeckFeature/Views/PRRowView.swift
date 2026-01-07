@@ -9,6 +9,7 @@ struct PRRowView: View {
     let isSelected: Bool
     let onCopyPRURL: (URL) -> Void
     let onCopyCIURL: (URL) -> Void
+    let onSelect: () -> Void
 
     @State private var isHovered = false
     @State private var pendingCopyTask: Task<Void, Never>?
@@ -62,10 +63,12 @@ struct PRRowView: View {
         .onHover { isHovered = $0 }
         .prdeckInteractiveCursor()
         .onTapGesture {
+            onSelect()
             scheduleCopyPRLink()
         }
         .highPriorityGesture(
             TapGesture(count: 2).onEnded {
+                onSelect()
                 pendingCopyTask?.cancel()
                 pendingCopyTask = nil
                 NSWorkspace.shared.open(item.url)
@@ -90,10 +93,6 @@ struct PRRowView: View {
             pendingMergeGateCopyTask?.cancel()
             pendingMergeGateCopyTask = nil
         }
-        .listRowInsets(.init(top: 0, leading: 0, bottom: 0, trailing: 0))
-        .listRowSeparator(.visible)
-        .listRowSeparatorTint(theme.divider)
-        .listRowBackground(Color.clear)
     }
 
     @ViewBuilder
@@ -295,6 +294,7 @@ struct PRRowView: View {
                     .onEnded { value in
                         switch value {
                         case .first:
+                            onSelect()
                             pendingCopyTask?.cancel()
                             pendingCopyTask = nil
 
@@ -303,6 +303,7 @@ struct PRRowView: View {
 
                             NSWorkspace.shared.open(urlToOpen)
                         case .second:
+                            onSelect()
                             scheduleCopyMergeGateLink(urlToCopy)
                         }
                     }

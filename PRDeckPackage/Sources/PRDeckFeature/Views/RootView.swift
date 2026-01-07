@@ -153,17 +153,6 @@ struct RootView: View {
         }
     }
 
-    private var selectionBinding: Binding<PRItem.ID?> {
-        Binding(
-            get: { dataController.selectedId },
-            set: { newValue in
-                DispatchQueue.main.async {
-                    dataController.selectedId = newValue
-                }
-            }
-        )
-    }
-
     private var needsAttentionCount: Int {
         dataController.items.filter { $0.needsAttention }.count
     }
@@ -334,19 +323,38 @@ struct RootView: View {
     }
 
     private var list: some View {
-        List(visibleItems, selection: selectionBinding) { item in
-            PRRowView(
-                item: item,
-                isRefreshing: showRefreshIndicators,
-                isSelected: item.id == dataController.selectedId,
-                onCopyPRURL: { copyToPasteboard($0); showToast("Copied PR link") },
-                onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI link") }
-            )
-                .tag(item.id)
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(visibleItems) { item in
+                        PRRowView(
+                            item: item,
+                            isRefreshing: showRefreshIndicators,
+                            isSelected: item.id == dataController.selectedId,
+                            onCopyPRURL: { copyToPasteboard($0); showToast("Copied PR link") },
+                            onCopyCIURL: { copyToPasteboard($0); showToast("Copied CI link") },
+                            onSelect: { dataController.selectedId = item.id }
+                        )
+                        .id(item.id)
+
+                        if item.id != visibleItems.last?.id {
+                            Rectangle()
+                                .fill(theme.divider)
+                                .frame(height: 1)
+                                .padding(.horizontal, 20 * computedZoomScale)
+                        }
+                    }
+                }
+                .padding(.vertical, 4 * computedZoomScale)
+            }
+            .background(theme.surface)
+            .onChange(of: dataController.selectedId) { _, newValue in
+                guard let newValue else { return }
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    proxy.scrollTo(newValue, anchor: .center)
+                }
+            }
         }
-        .listStyle(.plain)
-        .scrollContentBackground(.hidden)
-        .background(theme.surface)
     }
 
     private func installKeyMonitor() {

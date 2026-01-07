@@ -22,8 +22,13 @@ struct HeaderBarView: View {
     private var statusIconSize: CGFloat { 18 * zoomScale }
 
     private var toolbarPaddingLeading: CGFloat { 20 * zoomScale }
-    private var toolbarPaddingTrailing: CGFloat { 20 * zoomScale }
+    private var toolbarPaddingTrailing: CGFloat { (20 * zoomScale) + scrollerGutterWidth }
     private var statusColumnWidth: CGFloat { 44 * zoomScale }
+
+    private var scrollerGutterWidth: CGFloat {
+        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    }
 
     var body: some View {
         topRow

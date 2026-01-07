@@ -215,23 +215,23 @@ struct PRRowView: View {
         let helpText: String = {
             switch mergeGateVisual {
             case .clean:
-                return "Mergeable"
+                return "Mergeable — Click: copy PR link • Double-click: open PR"
             case .checksRunning:
-                return "Checks running — click to open checks"
+                return "Checks running — Click: copy checks link • Double-click: open checks"
             case .failingChecks:
-                return "Checks failing — click to open failing check"
+                return "Checks failing — Click: copy link • Double-click: open link"
             case .blocked:
-                return "Blocked — click to open PR"
+                return "Blocked — Click: copy PR link • Double-click: open PR"
             case .behind:
-                return "Behind base — click to open PR"
+                return "Behind base — Click: copy PR link • Double-click: open PR"
             case .dirty:
-                return "Cannot merge cleanly — click to open PR"
+                return "Cannot merge cleanly — Click: copy PR link • Double-click: open PR"
             case .draft:
-                return "Draft — click to open PR"
+                return "Draft — Click: copy PR link • Double-click: open PR"
             case .hasHooks:
-                return "Waiting on hooks — click to open PR"
+                return "Waiting on hooks — Click: copy PR link • Double-click: open PR"
             case .unknown:
-                return "Merge status unknown — click to open PR"
+                return "Merge status unknown — Click: copy PR link • Double-click: open PR"
             }
         }()
 

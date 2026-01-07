@@ -1,5 +1,13 @@
 import SwiftUI
 
+private struct PRDeckToolTipFramePreferenceKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = nextValue()
+    }
+}
+
 private struct PRDeckToolTipModifier: ViewModifier {
     @Environment(\.prdeckTheme) private var theme
     @Environment(\.prdeckZoomScale) private var zoomScale
@@ -10,9 +18,17 @@ private struct PRDeckToolTipModifier: ViewModifier {
     @State private var isHovered = false
     @State private var isVisible = false
     @State private var pendingTask: Task<Void, Never>?
+    @State private var anchorFrame: CGRect = .zero
 
     func body(content: Content) -> some View {
         content
+            .background(
+                GeometryReader { proxy in
+                    Color.clear
+                        .preference(key: PRDeckToolTipFramePreferenceKey.self, value: proxy.frame(in: .global))
+                }
+            )
+            .onPreferenceChange(PRDeckToolTipFramePreferenceKey.self) { anchorFrame = $0 }
             .onHover { hovering in
                 isHovered = hovering
                 if hovering {
@@ -21,16 +37,29 @@ private struct PRDeckToolTipModifier: ViewModifier {
                     hide()
                 }
             }
-            .overlay(alignment: .top) {
-                if isVisible, !text.isEmpty {
+            .overlay(alignment: .topTrailing) {
+                if isVisible, !text.isEmpty, !opensBelow {
                     tooltipView
-                        .offset(y: -(34 * zoomScale))
+                        .offset(x: -(6 * zoomScale), y: -(34 * zoomScale))
                         .transition(.opacity.combined(with: .move(edge: .top)))
                         .allowsHitTesting(false)
                         .zIndex(999)
                 }
             }
+            .overlay(alignment: .bottomTrailing) {
+                if isVisible, !text.isEmpty, opensBelow {
+                    tooltipView
+                        .offset(x: -(6 * zoomScale), y: (10 * zoomScale))
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        .allowsHitTesting(false)
+                        .zIndex(999)
+                }
+            }
             .onDisappear { hide() }
+    }
+
+    private var opensBelow: Bool {
+        anchorFrame.minY < (90 * zoomScale)
     }
 
     private func scheduleShow() {
@@ -62,7 +91,10 @@ private struct PRDeckToolTipModifier: ViewModifier {
     private var tooltipView: some View {
         Text(text)
             .font(.system(size: 12.5 * zoomScale, weight: .medium))
+            .multilineTextAlignment(.leading)
+            .lineLimit(1)
             .foregroundStyle(theme.textPrimary)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.horizontal, 10 * zoomScale)
             .padding(.vertical, 7 * zoomScale)
             .background(

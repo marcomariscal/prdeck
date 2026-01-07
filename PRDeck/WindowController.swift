@@ -80,7 +80,15 @@ final class WindowController: NSWindowController, NSWindowDelegate, NSToolbarDel
 
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
         let hostingView = NSHostingView(rootView: TitlebarTitleView())
-        hostingView.frame = .init(x: 0, y: 0, width: 160, height: 24)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.setContentHuggingPriority(.required, for: .horizontal)
+        hostingView.setContentHuggingPriority(.required, for: .vertical)
+        hostingView.setContentCompressionResistancePriority(.required, for: .horizontal)
+        hostingView.setContentCompressionResistancePriority(.required, for: .vertical)
+        NSLayoutConstraint.activate([
+            hostingView.heightAnchor.constraint(equalToConstant: 24),
+            hostingView.widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
+        ])
         item.view = hostingView
         return item
     }

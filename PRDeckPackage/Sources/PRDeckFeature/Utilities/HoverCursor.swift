@@ -19,7 +19,7 @@ private final class CursorTrackingView: NSView {
 
         let options: NSTrackingArea.Options = [
             .mouseEnteredAndExited,
-            .activeInKeyWindow,
+            .activeAlways,
             .inVisibleRect,
         ]
         let area = NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil)
@@ -59,6 +59,10 @@ private struct HoverCursor: NSViewRepresentable {
 
     func updateNSView(_ nsView: CursorTrackingView, context: Context) {
         nsView.cursor = cursor
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: CursorTrackingView, context: Context) -> CGSize? {
+        CGSize(width: proposal.width ?? 0, height: proposal.height ?? 0)
     }
 }
 

@@ -1,0 +1,145 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-sign-notarize:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify secrets
+        run: |
+          required=(
+            APPLE_TEAM_ID
+            APPLE_CERTIFICATE_P12_BASE64
+            APPLE_CERTIFICATE_PASSWORD
+            APPLE_NOTARYTOOL_ISSUER_ID
+            APPLE_NOTARYTOOL_KEY_ID
+            APPLE_NOTARYTOOL_KEY_P8_BASE64
+          )
+
+          missing=0
+          for key in "${required[@]}"; do
+            if [[ -z "${!key:-}" ]]; then
+              echo "::error title=Missing secret::${key} is required"
+              missing=1
+            fi
+          done
+
+          if [[ "$missing" -eq 1 ]]; then
+            echo "See RELEASING.md for setup instructions."
+            exit 1
+          fi
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARYTOOL_KEY_P8_BASE64 }}
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+
+      - name: Build (archive)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace PRDeck.xcworkspace \
+            -scheme PRDeck \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/PRDeck.xcarchive" \
+            archive \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Export app
+        run: |
+          set -euo pipefail
+
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>developer-id</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+          </dict>
+          </plist>
+          EOF
+
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$RUNNER_TEMP/PRDeck.xcarchive" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist"
+
+          ls -la "$RUNNER_TEMP/export"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+      - name: Notarize + staple
+        run: |
+          set -euo pipefail
+
+          APP_PATH="$RUNNER_TEMP/export/PRDeck.app"
+          if [[ ! -d "$APP_PATH" ]]; then
+            echo "::error title=Export failed::Expected $APP_PATH"
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+
+          KEY_PATH="$RUNNER_TEMP/AuthKey.p8"
+          echo "${APPLE_NOTARYTOOL_KEY_P8_BASE64}" | base64 --decode > "$KEY_PATH"
+
+          INPUT_ZIP="$RUNNER_TEMP/PRDeck-notarize.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$INPUT_ZIP"
+
+          xcrun notarytool submit "$INPUT_ZIP" \
+            --key "$KEY_PATH" \
+            --key-id "${APPLE_NOTARYTOOL_KEY_ID}" \
+            --issuer "${APPLE_NOTARYTOOL_ISSUER_ID}" \
+            --wait
+
+          xcrun stapler staple "$APP_PATH"
+          spctl -a -vv "$APP_PATH"
+
+          DIST_ZIP="PRDeck-${GITHUB_REF_NAME}-macos.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$DIST_ZIP"
+          shasum -a 256 "$DIST_ZIP" | awk '{print $1}' > "${DIST_ZIP}.sha256"
+        env:
+          APPLE_NOTARYTOOL_ISSUER_ID: ${{ secrets.APPLE_NOTARYTOOL_ISSUER_ID }}
+          APPLE_NOTARYTOOL_KEY_ID: ${{ secrets.APPLE_NOTARYTOOL_KEY_ID }}
+          APPLE_NOTARYTOOL_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARYTOOL_KEY_P8_BASE64 }}
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            PRDeck-*-macos.zip
+            PRDeck-*-macos.zip.sha256
+

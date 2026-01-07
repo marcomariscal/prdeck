@@ -40,8 +40,6 @@ struct RootView: View {
         return pow(1.12, CGFloat(clamped))
     }
 
-    private var titlebarHeight: CGFloat { 28 }
-
     private var themePalette: PRDeckPalette {
         PRDeckPalette(rawValue: themePaletteRaw) ?? .appleBetter
     }
@@ -204,12 +202,6 @@ struct RootView: View {
                 list
             }
         }
-        .padding(.top, titlebarHeight)
-        .background(alignment: .top) {
-            Rectangle()
-                .fill(theme.surface)
-                .frame(height: titlebarHeight)
-        }
         .background(theme.bg)
         .background(WindowAutoSizer(desiredContentHeight: desiredContentHeight).frame(width: 0, height: 0))
         .onAppear {
@@ -262,13 +254,13 @@ struct RootView: View {
         let errorBannerHeight = dataController.lastError == nil ? 0 : (measuredHeights["errorBanner"] ?? 0)
         let dividerHeight: CGFloat = 1
 
-        // Matches `PRRowView`'s minimum row height; List chrome is an approximation for inset style padding.
+        // Matches `PRRowView`'s minimum row height.
         let rowHeight = 52 * computedZoomScale
-        let listChrome: CGFloat = 44
+        let listChrome = 8 * computedZoomScale
         let visibleCount = sizingItemCount
         let rowsHeight = rowHeight * CGFloat(max(visibleCount, 1))
 
-        return titlebarHeight + topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight
+        return topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight
     }
 
     private func migrateRepoFilterModeIfNeeded() {

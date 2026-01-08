@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 struct HeaderBarView: View {
@@ -15,64 +14,51 @@ struct HeaderBarView: View {
 
     @State private var isFilterHovered = false
 
-    private var rowHeight: CGFloat { 52 * zoomScale }
-    private var searchHeight: CGFloat { 36 * zoomScale }
-    private var pillRadius: CGFloat { 11 * zoomScale }
+    // Scaled layout values - match row structure exactly
+    private var contentPadding: CGFloat { PRDeckLayout.contentPadding * zoomScale }
+    private var statusColumnWidth: CGFloat { PRDeckLayout.statusColumnWidth * zoomScale }
+    private var rowHeight: CGFloat { PRDeckLayout.rowHeight * zoomScale }
+
+    // Local constants
+    private var searchHeight: CGFloat { 34 * zoomScale }
+    private var pillRadius: CGFloat { 10 * zoomScale }
     private var iconHitSize: CGFloat { 30 * zoomScale }
-    private var statusIconSize: CGFloat { 18 * zoomScale }
-
-    private var toolbarPaddingLeading: CGFloat { 20 * zoomScale }
-    private var toolbarPaddingTrailing: CGFloat { (20 * zoomScale) + scrollerGutterWidth }
-    private var statusColumnWidth: CGFloat { 44 * zoomScale }
-
-    private var scrollerGutterWidth: CGFloat {
-        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
-        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
-    }
 
     var body: some View {
-        topRow
-        .padding(.leading, toolbarPaddingLeading)
-        .padding(.trailing, toolbarPaddingTrailing)
-        .padding(.vertical, 10 * zoomScale)
-        .background(theme.surface)
-    }
-
-    private var topRow: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 12 * zoomScale) {
             search
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: searchHeight)
-
-            Spacer(minLength: 16 * zoomScale)
 
             filterButton
         }
         .frame(height: rowHeight)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, PRDeckLayout.listInset + PRDeckLayout.scrollGutter)
+        .padding(.vertical, PRDeckLayout.sectionPadding * zoomScale)
+        .background(theme.surface)
     }
 
     private var search: some View {
-        HStack(spacing: 6 * zoomScale) {
+        HStack(spacing: 8 * zoomScale) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 13 * zoomScale))
-                .foregroundStyle(theme.textDisabled)
-                .frame(width: 14 * zoomScale, height: 14 * zoomScale)
+                .font(.system(size: 12 * zoomScale, weight: .medium))
+                .foregroundStyle(theme.textTertiary)
 
-            TextField("Search", text: $searchText)
+            TextField("Search PRs...", text: $searchText)
                 .textFieldStyle(.plain)
                 .focused(searchFocused)
-                .font(.system(size: 13 * zoomScale))
+                .font(.system(size: 12.5 * zoomScale, weight: .medium))
                 .foregroundStyle(theme.textPrimary)
         }
-        .padding(.horizontal, 10 * zoomScale)
+        .padding(.horizontal, 12 * zoomScale)
         .frame(height: searchHeight)
+        .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
-                .fill(theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
-                        .stroke(searchFocused.wrappedValue ? theme.focusRing : theme.border, lineWidth: searchFocused.wrappedValue ? 1.5 : 1)
-                )
+                .fill(theme.surface2.opacity(0.6))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: pillRadius, style: .continuous)
+                .stroke(searchFocused.wrappedValue ? theme.focusRing.opacity(0.8) : theme.border.opacity(0.5), lineWidth: 1)
         )
     }
 
@@ -81,37 +67,28 @@ struct HeaderBarView: View {
             isRepoFilterPresented.toggle()
         } label: {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: "line.3.horizontal.decrease.circle")
-                    .font(.system(size: statusIconSize))
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(isRepoFilterActive ? theme.textPrimary : theme.textTertiary)
-                    .opacity(isRepoFilterActive ? 1 : 0.8)
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 15 * zoomScale, weight: .medium))
+                    .foregroundStyle(isRepoFilterActive ? theme.accent : theme.textSecondary)
 
                 if isRepoFilterActive {
-                    Group {
-                        if repoFilterActiveCount <= 9 {
-                            Text("\(repoFilterActiveCount)")
-                                .font(.system(size: 9 * zoomScale, weight: .bold))
-                                .foregroundStyle(theme.bg)
-                                .frame(width: 12 * zoomScale, height: 12 * zoomScale)
-                                .background(theme.accent, in: Circle())
-                        } else {
-                            Circle()
-                                .fill(theme.accent)
-                                .frame(width: 6 * zoomScale, height: 6 * zoomScale)
-                        }
-                    }
-                    .offset(x: 4 * zoomScale, y: -4 * zoomScale)
-                    .accessibilityHidden(true)
+                    Circle()
+                        .fill(theme.accent)
+                        .frame(width: 6 * zoomScale, height: 6 * zoomScale)
+                        .offset(x: 2 * zoomScale, y: -2 * zoomScale)
+                        .accessibilityHidden(true)
                 }
             }
             .frame(width: iconHitSize, height: iconHitSize)
-            .background(isFilterHovered ? theme.rowHover : .clear, in: Circle())
+            .background(
+                RoundedRectangle(cornerRadius: 8 * zoomScale, style: .continuous)
+                    .fill(isFilterHovered ? theme.rowHover : .clear)
+            )
         }
         .buttonStyle(.plain)
-        .frame(width: statusColumnWidth, height: rowHeight, alignment: .trailing)
         .contentShape(Rectangle())
         .prdeckInteractiveCursor()
+        .prdeckToolTip(repoFilterHelp)
         .onHover { isFilterHovered = $0 }
     }
 }

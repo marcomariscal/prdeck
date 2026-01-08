@@ -1,4 +1,54 @@
+import AppKit
 import SwiftUI
+
+// MARK: - Unified Layout System
+
+/// Semantic spacing constants for consistent alignment across all views.
+/// All values are base values that get multiplied by `zoomScale`.
+public enum PRDeckLayout {
+    // MARK: Horizontal Spacing
+
+    /// Outer inset for the scrollable list wrapper (10pt base)
+    public static let listInset: CGFloat = 10
+
+    /// Internal horizontal padding within row content (20pt base)
+    public static let contentPadding: CGFloat = 20
+
+    /// Reserved space for scroll indicator appearance (6pt base)
+    public static let scrollGutter: CGFloat = 6
+
+    /// Fixed width for the status/action column on the right (40pt base)
+    public static let statusColumnWidth: CGFloat = 40
+
+    // MARK: Vertical Spacing
+
+    /// Minimum row height (50pt base)
+    public static let rowHeight: CGFloat = 50
+
+    /// Vertical spacing between rows (6pt base)
+    public static let rowSpacing: CGFloat = 6
+
+    /// Vertical padding around sections/header (8pt base)
+    public static let sectionPadding: CGFloat = 8
+
+    /// Internal vertical padding within rows (10pt base)
+    public static let rowVerticalPadding: CGFloat = 10
+
+    // MARK: Computed Composites
+
+    /// Total leading padding for content alignment: listInset + contentPadding
+    public static let contentLeading: CGFloat = listInset + contentPadding
+
+    /// Total trailing padding for content alignment: listInset + contentPadding + scrollGutter
+    public static let contentTrailing: CGFloat = listInset + contentPadding + scrollGutter
+
+    /// Returns the legacy scroller width if legacy style is active, otherwise 0
+    @MainActor
+    public static var scrollerWidth: CGFloat {
+        guard NSScroller.preferredScrollerStyle == .legacy else { return 0 }
+        return NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy)
+    }
+}
 
 public enum PRDeckPalette: String, CaseIterable, Identifiable, Sendable {
     // Terminal-inspired

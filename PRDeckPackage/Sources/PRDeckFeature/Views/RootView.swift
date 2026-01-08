@@ -255,14 +255,22 @@ struct RootView: View {
         let errorBannerHeight = dataController.lastError == nil ? 0 : (measuredHeights["errorBanner"] ?? 0)
         let dividerHeight: CGFloat = 1
 
-        // Matches `PRRowView`'s minimum row height.
-        let rowHeight = 52 * computedZoomScale
-        let listChrome = 8 * computedZoomScale
+        let rowHeight = PRDeckLayout.rowHeight * computedZoomScale
         let visibleCount = sizingItemCount
         let rowsHeight = rowHeight * CGFloat(max(visibleCount, 1))
 
+        let rowSpacing = PRDeckLayout.rowSpacing * computedZoomScale
+        let interRowSpacing = rowSpacing * CGFloat(max(visibleCount - 1, 0))
+
+        let listPaddingY = PRDeckLayout.sectionPadding * computedZoomScale
+        let listChrome = (listPaddingY * 2) + interRowSpacing
+
         return topBarHeight + dividerHeight + errorBannerHeight + listChrome + rowsHeight
     }
+
+    // Scaled layout values using unified system
+    // Note: listInset and scrollGutter are NOT scaled - they're window chrome
+    private var contentPadding: CGFloat { PRDeckLayout.contentPadding * computedZoomScale }
 
     private func migrateRepoFilterModeIfNeeded() {
         if UserDefaults.standard.object(forKey: PRDeckDefaultsKey.repoFilterMode) != nil { return }
@@ -318,7 +326,7 @@ struct RootView: View {
     private var list: some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 0) {
+                LazyVStack(spacing: PRDeckLayout.rowSpacing * computedZoomScale) {
                     ForEach(visibleItems) { item in
                         PRRowView(
                             item: item,
@@ -329,16 +337,10 @@ struct RootView: View {
                             onSelect: { dataController.selectedId = item.id }
                         )
                         .id(item.id)
-
-                        if item.id != visibleItems.last?.id {
-                            Rectangle()
-                                .fill(theme.divider)
-                                .frame(height: 1)
-                                .padding(.horizontal, 20 * computedZoomScale)
-                        }
                     }
                 }
-                .padding(.vertical, 4 * computedZoomScale)
+                .padding(.horizontal, PRDeckLayout.listInset + PRDeckLayout.scrollGutter)
+                .padding(.vertical, PRDeckLayout.sectionPadding * computedZoomScale)
             }
             .background(theme.surface)
             .onChange(of: dataController.selectedId) { _, newValue in
@@ -512,29 +514,29 @@ struct RootView: View {
 
     private var filtersView: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16 * computedZoomScale) {
+            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
                 filtersPRScopeCard
 
                 filtersReposCard
 
                 filtersAppearanceCard
             }
-            .padding(.horizontal, filtersOuterPaddingX)
-            .padding(.vertical, filtersOuterPaddingY)
+            .padding(.horizontal, contentPadding)
+            .padding(.horizontal, PRDeckLayout.listInset + PRDeckLayout.scrollGutter)
+            .padding(.vertical, 12 * computedZoomScale)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(theme.surface)
     }
 
-    private var filtersOuterPaddingX: CGFloat { 20 * computedZoomScale }
-    private var filtersOuterPaddingY: CGFloat { 16 * computedZoomScale }
-
     private var filtersPRScopeCard: some View {
         filterCard {
-            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
+            VStack(alignment: .leading, spacing: 10 * computedZoomScale) {
                 Text("Pull Requests")
-                    .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
-                    .foregroundStyle(theme.textPrimary)
+                    .font(.system(size: 12 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
 
                 PRDeckSegmentedControl(
                     theme: theme,
@@ -554,11 +556,13 @@ struct RootView: View {
 
     private var filtersReposCard: some View {
         filterCard {
-            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
-                HStack(alignment: .center, spacing: 10 * computedZoomScale) {
+            VStack(alignment: .leading, spacing: 10 * computedZoomScale) {
+                HStack(alignment: .center, spacing: 8 * computedZoomScale) {
                     Text("Repositories")
-                        .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
-                        .foregroundStyle(theme.textPrimary)
+                        .font(.system(size: 12 * computedZoomScale, weight: .semibold))
+                        .foregroundStyle(theme.textSecondary)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
 
                     Spacer()
 
@@ -576,12 +580,11 @@ struct RootView: View {
                     ],
                     selection: $repoFilterModeRaw
                 )
-                .frame(width: 240)
 
                 filterSearchField
 
                 HStack(spacing: 8 * computedZoomScale) {
-                    Button("Select All") {
+                    filterActionButton("Select All") {
                         switch repoFilterMode {
                         case .exclude:
                             var set = excludedRepoSet
@@ -593,10 +596,8 @@ struct RootView: View {
                             setIncludedRepoSet(set)
                         }
                     }
-                    .controlSize(.small)
-                    .prdeckInteractiveCursor()
 
-                    Button("Clear") {
+                    filterActionButton("Clear") {
                         switch repoFilterMode {
                         case .exclude:
                             setExcludedRepoSet([])
@@ -604,8 +605,6 @@ struct RootView: View {
                             setIncludedRepoSet([])
                         }
                     }
-                    .controlSize(.small)
-                    .prdeckInteractiveCursor()
 
                     Spacer()
                 }
@@ -616,27 +615,58 @@ struct RootView: View {
         }
     }
 
+    private func filterActionButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 11 * computedZoomScale, weight: .medium))
+                .foregroundStyle(theme.textSecondary)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 10 * computedZoomScale)
+        .padding(.vertical, 5 * computedZoomScale)
+        .background(
+            RoundedRectangle(cornerRadius: 6 * computedZoomScale, style: .continuous)
+                .fill(theme.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6 * computedZoomScale, style: .continuous)
+                .stroke(theme.border.opacity(0.5), lineWidth: 1)
+        )
+        .prdeckInteractiveCursor()
+    }
+
     private var filtersAppearanceCard: some View {
         filterCard {
-            VStack(alignment: .leading, spacing: 12 * computedZoomScale) {
+            VStack(alignment: .leading, spacing: 10 * computedZoomScale) {
                 Text("Appearance")
-                    .font(.system(size: 13.5 * computedZoomScale, weight: .semibold))
-                    .foregroundStyle(theme.textPrimary)
+                    .font(.system(size: 12 * computedZoomScale, weight: .semibold))
+                    .foregroundStyle(theme.textSecondary)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
 
                 HStack(alignment: .center, spacing: 10 * computedZoomScale) {
                     Text("Theme")
                         .font(.system(size: 12.5 * computedZoomScale, weight: .medium))
-                        .foregroundStyle(theme.textSecondary)
+                        .foregroundStyle(theme.textPrimary)
 
                     Spacer()
 
                     themeMenu
                 }
 
-                Toggle("Show repo/org logo", isOn: $showRepoAvatar)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .prdeckInteractiveCursor()
+                HStack(alignment: .center, spacing: 10 * computedZoomScale) {
+                    Text("Show repo logo")
+                        .font(.system(size: 12.5 * computedZoomScale, weight: .medium))
+                        .foregroundStyle(theme.textPrimary)
+
+                    Spacer()
+
+                    Toggle("", isOn: $showRepoAvatar)
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                        .labelsHidden()
+                        .prdeckInteractiveCursor()
+                }
             }
         }
     }
@@ -655,23 +685,26 @@ struct RootView: View {
                 }
             }
         } label: {
-            HStack(spacing: 8 * computedZoomScale) {
+            HStack(spacing: 6 * computedZoomScale) {
                 Text(themePalette.displayName)
-                    .font(.system(size: 12.5 * computedZoomScale, weight: .semibold))
+                    .font(.system(size: 11.5 * computedZoomScale, weight: .medium))
                     .foregroundStyle(theme.textPrimary)
 
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 10.5 * computedZoomScale, weight: .semibold))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9 * computedZoomScale, weight: .medium))
                     .foregroundStyle(theme.textTertiary)
             }
             .padding(.horizontal, 10 * computedZoomScale)
-            .frame(height: 28 * computedZoomScale)
+            .frame(height: 26 * computedZoomScale)
             .background(
-                Capsule(style: .continuous)
+                RoundedRectangle(cornerRadius: 6 * computedZoomScale, style: .continuous)
                     .fill(isThemeMenuHovered ? theme.rowHover : theme.surface)
-                    .overlay(Capsule(style: .continuous).stroke(theme.border, lineWidth: 1))
             )
-            .contentShape(Capsule(style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 6 * computedZoomScale, style: .continuous)
+                    .stroke(theme.border.opacity(0.5), lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 6 * computedZoomScale, style: .continuous))
             .onHover { isThemeMenuHovered = $0 }
         }
         .menuIndicator(.hidden)
@@ -682,20 +715,20 @@ struct RootView: View {
 
     private func filterCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         content()
-            .padding(12)
+            .padding(14 * computedZoomScale)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 14 * computedZoomScale, style: .continuous)
-                    .fill(theme.surface2)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 14 * computedZoomScale, style: .continuous)
-                            .stroke(theme.border, lineWidth: 1)
-                    )
+                RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+                    .fill(theme.surface2.opacity(0.5))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+                    .stroke(theme.border.opacity(0.4), lineWidth: 1)
             )
     }
 
     private var repoFilterPill: some View {
-        let mode = repoFilterMode == .exclude ? "excluded" : "included"
-        let label = "Repo: \(repoFilterActiveCount) \(mode)"
+        let count = repoFilterActiveCount
 
         return Button {
             switch repoFilterMode {
@@ -703,28 +736,27 @@ struct RootView: View {
             case .include: setIncludedRepoSet([])
             }
         } label: {
-            HStack(spacing: 6 * computedZoomScale) {
-                Text(label)
-                    .font(.system(size: 11.5 * computedZoomScale, weight: .semibold))
-                    .foregroundStyle(theme.textSecondary)
+            HStack(spacing: 5 * computedZoomScale) {
+                Text("\(count)")
+                    .font(.system(size: 10 * computedZoomScale, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(theme.bg)
+                    .frame(width: 16 * computedZoomScale, height: 16 * computedZoomScale)
+                    .background(theme.accent, in: Circle())
 
                 Image(systemName: "xmark")
-                    .font(.system(size: 9 * computedZoomScale, weight: .bold))
+                    .font(.system(size: 8 * computedZoomScale, weight: .bold))
                     .foregroundStyle(theme.textTertiary)
-                    .frame(width: 18 * computedZoomScale, height: 18 * computedZoomScale)
-                    .background(theme.surface, in: Circle())
-                    .overlay(Circle().stroke(theme.border, lineWidth: 1))
             }
-            .padding(.leading, 10 * computedZoomScale)
-            .padding(.trailing, 6 * computedZoomScale)
-            .frame(height: 26 * computedZoomScale)
+            .padding(.leading, 4 * computedZoomScale)
+            .padding(.trailing, 8 * computedZoomScale)
+            .frame(height: 24 * computedZoomScale)
             .background(
                 Capsule(style: .continuous)
                     .fill(theme.surface)
-                    .overlay(
-                        Capsule(style: .continuous)
-                            .stroke(theme.border, lineWidth: 1)
-                    )
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(theme.border.opacity(0.5), lineWidth: 1)
             )
             .contentShape(Capsule(style: .continuous))
         }
@@ -733,25 +765,25 @@ struct RootView: View {
     }
 
     private var filterSearchField: some View {
-        HStack(spacing: 6 * computedZoomScale) {
+        HStack(spacing: 8 * computedZoomScale) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 12.5 * computedZoomScale))
-                .foregroundStyle(theme.textDisabled)
+                .font(.system(size: 11 * computedZoomScale, weight: .medium))
+                .foregroundStyle(theme.textTertiary)
 
-            TextField("Filter repos…", text: $repoFilterSearchText)
+            TextField("Filter repos...", text: $repoFilterSearchText)
                 .textFieldStyle(.plain)
-                .font(.system(size: 12.5 * computedZoomScale))
+                .font(.system(size: 12 * computedZoomScale, weight: .medium))
                 .foregroundStyle(theme.textPrimary)
         }
         .padding(.horizontal, 10 * computedZoomScale)
-        .frame(height: 32 * computedZoomScale)
+        .frame(height: 30 * computedZoomScale)
         .background(
-            RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+            RoundedRectangle(cornerRadius: 8 * computedZoomScale, style: .continuous)
                 .fill(theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
-                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8 * computedZoomScale, style: .continuous)
+                .stroke(theme.border.opacity(0.5), lineWidth: 1)
         )
     }
 
@@ -759,18 +791,19 @@ struct RootView: View {
         VStack(alignment: .leading, spacing: 0) {
             if visibleReposForFiltering.isEmpty {
                 Text("No repositories match your search.")
-                    .font(.system(size: 12 * computedZoomScale, weight: .medium))
+                    .font(.system(size: 11 * computedZoomScale, weight: .medium))
                     .foregroundStyle(theme.textTertiary)
                     .padding(.vertical, 12 * computedZoomScale)
+                    .padding(.horizontal, 10 * computedZoomScale)
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     ForEach(visibleReposForFiltering, id: \.self) { repo in
                         Toggle(repo, isOn: repoToggleBinding(for: repo))
                             .toggleStyle(.checkbox)
-                            .font(.system(size: 12.5 * computedZoomScale, weight: .medium))
+                            .font(.system(size: 11.5 * computedZoomScale, weight: .medium))
                             .foregroundStyle(theme.textPrimary)
-                            .padding(.vertical, 7 * computedZoomScale)
+                            .padding(.vertical, 6 * computedZoomScale)
                             .padding(.horizontal, 10 * computedZoomScale)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
@@ -778,7 +811,7 @@ struct RootView: View {
 
                         if repo != visibleReposForFiltering.last {
                             Rectangle()
-                                .fill(theme.divider)
+                                .fill(theme.divider.opacity(0.5))
                                 .frame(height: 1)
                                 .padding(.leading, 10 * computedZoomScale)
                         }
@@ -787,12 +820,12 @@ struct RootView: View {
             }
         }
         .background(
-            RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
+            RoundedRectangle(cornerRadius: 8 * computedZoomScale, style: .continuous)
                 .fill(theme.surface)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12 * computedZoomScale, style: .continuous)
-                        .stroke(theme.border, lineWidth: 1)
-                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8 * computedZoomScale, style: .continuous)
+                .stroke(theme.border.opacity(0.5), lineWidth: 1)
         )
     }
 

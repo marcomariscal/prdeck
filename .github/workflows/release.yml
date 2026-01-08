@@ -118,11 +118,67 @@ jobs:
           INPUT_ZIP="$RUNNER_TEMP/PRDeck-notarize.zip"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$INPUT_ZIP"
 
-          xcrun notarytool submit "$INPUT_ZIP" \
-            --key "$KEY_PATH" \
-            --key-id "${APPLE_NOTARYTOOL_KEY_ID}" \
-            --issuer "${APPLE_NOTARYTOOL_ISSUER_ID}" \
-            --wait
+          SUBMISSION_ID="$(
+            xcrun notarytool submit \
+              --key "$KEY_PATH" \
+              --key-id "${APPLE_NOTARYTOOL_KEY_ID}" \
+              --issuer "${APPLE_NOTARYTOOL_ISSUER_ID}" \
+              --output-format json \
+              "$INPUT_ZIP" \
+              | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])'
+          )"
+
+          echo "Notary submission id: $SUBMISSION_ID"
+
+          deadline="$(( $(date +%s) + 5 * 60 * 60 ))"
+          while true; do
+            set +e
+            INFO_JSON="$(
+              xcrun notarytool info \
+                --key "$KEY_PATH" \
+                --key-id "${APPLE_NOTARYTOOL_KEY_ID}" \
+                --issuer "${APPLE_NOTARYTOOL_ISSUER_ID}" \
+                --output-format json \
+                "$SUBMISSION_ID" 2>&1
+            )"
+            info_exit="$?"
+            set -e
+
+            if [[ "$info_exit" -ne 0 ]]; then
+              if echo "$INFO_JSON" | grep -Eq 'NSURLErrorDomain Code=-1009|Internet connection appears to be offline|No network route'; then
+                echo "Transient network error talking to Apple; retrying in 20s..."
+                sleep 20
+                continue
+              fi
+
+              echo "$INFO_JSON"
+              exit 1
+            fi
+
+            STATUS="$(echo "$INFO_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status",""))')"
+            echo "Notary status: $STATUS"
+
+            if [[ "$STATUS" == "Accepted" ]]; then
+              break
+            fi
+
+            if [[ "$STATUS" == "Invalid" ]]; then
+              echo "::error title=Notarization failed::Submission $SUBMISSION_ID is Invalid"
+              xcrun notarytool log \
+                --key "$KEY_PATH" \
+                --key-id "${APPLE_NOTARYTOOL_KEY_ID}" \
+                --issuer "${APPLE_NOTARYTOOL_ISSUER_ID}" \
+                "$SUBMISSION_ID" || true
+              exit 1
+            fi
+
+            if (( $(date +%s) > deadline )); then
+              echo "::error title=Notarization timed out::Submission $SUBMISSION_ID did not complete within 5h"
+              exit 1
+            fi
+
+            sleep 20
+          done
 
           xcrun stapler staple "$APP_PATH"
           spctl -a -vv "$APP_PATH"
@@ -142,4 +198,3 @@ jobs:
           files: |
             PRDeck-*-macos.zip
             PRDeck-*-macos.zip.sha256
-

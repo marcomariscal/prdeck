@@ -45,9 +45,7 @@ struct FiltersHeaderBarView: View {
             Text("Filters")
                 .font(.system(size: 12 * zoomScale, weight: .medium))
                 .foregroundStyle(theme.textTertiary)
-                .frame(width: statusColumnWidth, alignment: .trailing)
         }
-        .padding(.horizontal, contentPadding)
         .frame(height: rowHeight)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, PRDeckLayout.listInset + PRDeckLayout.scrollGutter)

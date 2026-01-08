@@ -521,7 +521,6 @@ struct RootView: View {
 
                 filtersAppearanceCard
             }
-            .padding(.horizontal, contentPadding)
             .padding(.horizontal, PRDeckLayout.listInset + PRDeckLayout.scrollGutter)
             .padding(.vertical, 12 * computedZoomScale)
             .frame(maxWidth: .infinity, alignment: .leading)

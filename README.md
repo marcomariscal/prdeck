@@ -21,40 +21,35 @@ It’s built for fast triage: copy links with a click, open with a double-click,
 ## Requirements
 
 - macOS 14+
-- GitHub access (required while this repo is **private**; will be removed when it’s public)
 - [Homebrew](https://brew.sh) (recommended install + easiest way to install `gh`)
 - GitHub CLI installed: `gh` (e.g. `brew install gh`)
-- Logged in: `gh auth login` (for installing via Homebrew, you’ll need `gh auth login -s repo`)
+- Logged in: `gh auth login` (for private repos, use `gh auth login -s repo`)
 
 ## Install
 
 ### Option 1: Homebrew (recommended)
 
-While this repo is **private**, Homebrew needs a GitHub token to download release assets. Once the repo is public, you can omit `HOMEBREW_GITHUB_API_TOKEN`.
-
 1. Install `gh` (if needed) and log in (interactive):
    ```sh
    brew install gh
-   gh auth login -s repo
+   gh auth login
    ```
 
 2. Tap + install:
    ```sh
-   HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)" brew tap marcomariscal/prdeck
-   HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)" brew install --cask prdeck
+   brew tap marcomariscal/prdeck
+   brew install --cask prdeck
    ```
 
-Note: future upgrades also require the token. You can run:
+Upgrades:
 
 ```sh
-HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)" brew upgrade --cask prdeck
+brew upgrade --cask prdeck
 ```
 
 ### Option 2: Download a release
 
-> **Note:** while this repo is private, you must be logged into GitHub and have access to view releases.
-
-Download the `PRDeck-<version>-macos.zip` asset from the [Releases page](https://github.com/marcomariscal/prdeck/releases), unzip it, and move `PRDeck.app` to `/Applications`.
+Download the `PRDeck-v<version>-macos.zip` asset from the [Releases page](https://github.com/marcomariscal/prdeck/releases), unzip it, and move `PRDeck.app` to `/Applications`.
 
 PRDeck releases are meant to be signed + notarized (see `RELEASING.md`). If macOS blocks the first launch, try right-click → **Open**.
 
@@ -125,14 +120,14 @@ gh auth status
 gh auth login
 ```
 
-### Homebrew download/tap fails (private repo)
+### Homebrew tap/install fails
 
-Make sure the token is set **before** running `brew tap` / `brew install`:
+Re-tap and reinstall:
 
 ```sh
-gh auth login -s repo
-HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)" brew tap marcomariscal/prdeck
-HOMEBREW_GITHUB_API_TOKEN="$(gh auth token)" brew install --cask prdeck
+brew untap marcomariscal/prdeck
+brew tap marcomariscal/prdeck
+brew reinstall --cask prdeck
 ```
 
 ## Development
@@ -149,7 +144,7 @@ PRDeckUITests/                   # UI tests
 ## Roadmap (ideas)
 
 - [ ] DMG distribution (in addition to zip; signed + notarized; nicer “drag to /Applications” flow)
-- [ ] Publish cask to `homebrew-cask` once this repo/releases are public (no custom tap, no token)
+- [ ] Publish cask to `homebrew-cask` (no custom tap)
 
 ## Contributing
 

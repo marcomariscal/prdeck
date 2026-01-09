@@ -1,6 +1,6 @@
 cask "prdeck" do
-  version "0.1.1"
-  sha256 "dddeb6c95f32c095a20599f0a3f6c96631ec0901e81167fe530b569c60628978"
+  version "0.1.2"
+  sha256 "8d90e27dd634a95e572907b59e6c9ffa0d3897c30f2c237f3f038214f89b56e8"
 
   url "https://github.com/marcomariscal/prdeck/releases/download/v#{version}/PRDeck-v#{version}-macos.zip"
 

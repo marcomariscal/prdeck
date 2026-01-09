@@ -26,3 +26,6 @@ git push origin v0.1.0
 
 This triggers `.github/workflows/release.yml`, which builds, signs, notarizes, staples, and uploads a `PRDeck-<tag>-macos.zip` asset to the GitHub Release.
 
+## Homebrew cask
+
+The Homebrew cask lives in `Casks/prdeck.rb` and should be updated to the new `version` + `sha256` after publishing a release.

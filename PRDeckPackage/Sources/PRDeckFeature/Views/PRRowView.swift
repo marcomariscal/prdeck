@@ -4,6 +4,7 @@ import SwiftUI
 struct PRRowView: View {
     @Environment(\.prdeckZoomScale) private var zoomScale
     @Environment(\.prdeckTheme) private var theme
+    @Environment(\.controlActiveState) private var controlActiveState
     let item: PRItem
     let isRefreshing: Bool
     let isSelected: Bool
@@ -20,12 +21,12 @@ struct PRRowView: View {
         HStack(spacing: 0) {
             // Column A: Fixed Avatar
             authorAvatar
-                .frame(width: 40 * zoomScale, alignment: .leading)
+                .frame(width: PRDeckLayout.statusColumnWidth * zoomScale, alignment: .leading)
 
             // Column B: Fluid Content
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 3 * zoomScale) {
                 Text(item.title)
-                    .font(.system(size: 13.5 * zoomScale, weight: .semibold))
+                    .font(.system(size: 13 * zoomScale, weight: .semibold))
                     .foregroundStyle(theme.textPrimary)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -33,30 +34,31 @@ struct PRRowView: View {
                 HStack(alignment: .center, spacing: 0) {
                     Text(item.repository.nameWithOwner)
                         .foregroundStyle(theme.textSecondary)
-                    
-                    Text(" • #\(item.number)")
+
+                    metaDot
+
+                    Text("#\(item.number)")
                         .foregroundStyle(theme.textTertiary)
                         .monospacedDigit()
-                    
-                    Text(" • ")
-                        .foregroundStyle(theme.textDisabled)
-                    
+
+                    metaDot
+
                     Text(TimeAgo.string(from: item.updatedAt))
                         .foregroundStyle(theme.textTertiary)
                 }
-                .font(.system(size: 11.5 * zoomScale, weight: .medium))
+                .font(.system(size: 11 * zoomScale, weight: .medium))
                 .lineLimit(1)
             }
-            
-            Spacer(minLength: 16)
+
+            Spacer(minLength: 12 * zoomScale)
 
             // Column C: Fixed Status Lane
             statusLane
-                .frame(width: 44 * zoomScale, alignment: .trailing)
+                .frame(width: PRDeckLayout.statusColumnWidth * zoomScale, alignment: .trailing)
         }
-        .padding(.horizontal, 20 * zoomScale)
-        .padding(.vertical, 10)
-        .frame(minHeight: 52 * zoomScale)
+        .padding(.horizontal, PRDeckLayout.contentPadding * zoomScale)
+        .padding(.vertical, PRDeckLayout.rowVerticalPadding * zoomScale)
+        .frame(minHeight: PRDeckLayout.rowHeight * zoomScale)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(rowBackground)
         .contentShape(Rectangle())
@@ -93,6 +95,17 @@ struct PRRowView: View {
             pendingMergeGateCopyTask?.cancel()
             pendingMergeGateCopyTask = nil
         }
+        .animation(.easeInOut(duration: 0.14), value: isHovered)
+        .animation(.easeInOut(duration: 0.14), value: isSelected)
+        .animation(.easeInOut(duration: 0.14), value: controlActiveState)
+    }
+
+    private var metaDot: some View {
+        Image(systemName: "circle.fill")
+            .font(.system(size: 4 * zoomScale, weight: .semibold))
+            .foregroundStyle(theme.textDisabled.opacity(0.7))
+            .padding(.horizontal, 6 * zoomScale)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder
@@ -199,18 +212,7 @@ struct PRRowView: View {
         let slotSize = 30 * zoomScale
         let iconSize = 18 * zoomScale
 
-        let color: Color = {
-            switch mergeGateVisual {
-            case .clean:
-                return theme.success
-            case .checksRunning, .blocked, .behind, .hasHooks:
-                return theme.warning
-            case .failingChecks, .dirty:
-                return theme.danger
-            case .draft, .unknown:
-                return theme.muted
-            }
-        }()
+        let color = mergeGateColor
 
         let helpText: String = {
             switch mergeGateVisual {
@@ -236,6 +238,19 @@ struct PRRowView: View {
         }()
 
         return mergeGateIcon(slotSize: slotSize, iconSize: iconSize, color: color, helpText: helpText)
+    }
+
+    private var mergeGateColor: Color {
+        switch mergeGateVisual {
+        case .clean:
+            return theme.success
+        case .checksRunning, .blocked, .behind, .hasHooks:
+            return theme.warning
+        case .failingChecks, .dirty:
+            return theme.danger
+        case .draft, .unknown:
+            return theme.muted
+        }
     }
 
     private func mergeGateIcon(slotSize: CGFloat, iconSize: CGFloat, color: Color, helpText: String) -> some View {
@@ -351,27 +366,40 @@ struct PRRowView: View {
     }
 
     private var rowBackground: some View {
-        ZStack {
-            theme.surface
+        let cornerRadius = 10 * zoomScale
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let stripeWidth = max(2, 2.5 * zoomScale)
+        let stripeOpacity = isSelected ? 0.85 : (isHovered ? 0.7 : 0.55)
+        let shadowOpacity = isSelected ? 0.3 : (isHovered ? 0.2 : 0.12)
+        let isWindowActive = controlActiveState == .active
 
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(selectionFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(selectionStroke, lineWidth: 1)
-                )
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
+        return ZStack(alignment: .leading) {
+            shape
+                .fill(baseFill)
+
+            if item.needsAttention {
+                Rectangle()
+                    .fill(mergeGateColor.opacity(stripeOpacity))
+                    .frame(width: stripeWidth)
+                    .padding(.vertical, PRDeckLayout.sectionPadding * zoomScale)
+                    .accessibilityHidden(true)
+            }
+
+            shape
+                .strokeBorder(baseStroke, lineWidth: 1)
         }
+        .clipShape(shape)
+        .shadow(color: theme.shadow.opacity(shadowOpacity), radius: 10, x: 0, y: 4)
+        .shadow(color: theme.focusRing.opacity(isSelected && isWindowActive ? 0.22 : 0), radius: isSelected && isWindowActive ? 14 : 0, x: 0, y: 0)
     }
 
-    private var selectionFill: some ShapeStyle {
+    private var baseFill: some ShapeStyle {
         if isSelected {
             return AnyShapeStyle(
                 LinearGradient(
                     colors: [
-                        theme.focusRing.opacity(0.22),
-                        theme.focusRing.opacity(0.10),
+                        theme.focusRing.opacity(0.18),
+                        theme.focusRing.opacity(0.08),
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -380,21 +408,21 @@ struct PRRowView: View {
         }
 
         if isHovered {
-            return AnyShapeStyle(theme.rowHover)
+            return AnyShapeStyle(theme.rowHover.opacity(0.85))
         }
 
-        return AnyShapeStyle(Color.clear)
+        return AnyShapeStyle(theme.surface2.opacity(0.75))
     }
 
-    private var selectionStroke: some ShapeStyle {
+    private var baseStroke: some ShapeStyle {
         if isSelected {
-            return AnyShapeStyle(theme.focusRing.opacity(0.55))
+            return AnyShapeStyle(theme.focusRing.opacity(0.5))
         }
 
         if isHovered {
             return AnyShapeStyle(theme.border.opacity(0.5))
         }
 
-        return AnyShapeStyle(Color.clear)
+        return AnyShapeStyle(theme.border.opacity(0.25))
     }
 }

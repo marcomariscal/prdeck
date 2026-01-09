@@ -11,7 +11,6 @@ public final class DataController: ObservableObject {
     private let dataSource: GitHubDataSource
     private let snapshotStore: SnapshotStore
     private let repoSnapshotStore: RepoSnapshotStore
-    private var priorOrder: [PRItem.ID] = []
     private var refreshTask: Task<Void, Never>?
 
     public convenience init() {
@@ -24,8 +23,7 @@ public final class DataController: ObservableObject {
         self.repoSnapshotStore = repoSnapshotStore
 
         if let snapshot = snapshotStore.loadSnapshot() {
-            items = snapshot
-            priorOrder = snapshot.map(\.id)
+            items = Self.sortItems(snapshot)
         }
 
         if let repos = repoSnapshotStore.loadRepos() {
@@ -66,7 +64,7 @@ public final class DataController: ObservableObject {
 
         do {
             let fetched = try await dataSource.fetchAll()
-            let ordered = applyStableOrdering(fetched)
+            let ordered = Self.sortItems(fetched)
             items = ordered
             snapshotStore.saveSnapshot(ordered)
 
@@ -83,25 +81,14 @@ public final class DataController: ObservableObject {
         }
     }
 
-    private func applyStableOrdering(_ incoming: [PRItem]) -> [PRItem] {
-        let byId = Dictionary(incoming.map { ($0.id, $0) }, uniquingKeysWith: { newest, _ in newest })
-
-        var seen = Set<PRItem.ID>()
-        var ordered: [PRItem] = []
-
-        for id in priorOrder {
-            if let item = byId[id] {
-                ordered.append(item)
-                seen.insert(id)
+    private static func sortItems(_ items: [PRItem]) -> [PRItem] {
+        items.sorted { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+            if lhs.repository.nameWithOwner != rhs.repository.nameWithOwner {
+                return lhs.repository.nameWithOwner.localizedCaseInsensitiveCompare(rhs.repository.nameWithOwner) == .orderedAscending
             }
+            if lhs.number != rhs.number { return lhs.number > rhs.number }
+            return lhs.id < rhs.id
         }
-
-        let newItems = incoming
-            .filter { !seen.contains($0.id) }
-            .sorted { $0.updatedAt > $1.updatedAt }
-
-        ordered.append(contentsOf: newItems)
-        priorOrder = ordered.map(\.id)
-        return ordered
     }
 }

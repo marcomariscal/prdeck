@@ -84,6 +84,10 @@ struct RootView: View {
     private var availableRepos: [String] {
         var byLower: [String: String] = [:]
 
+        for name in dataController.knownRepos {
+            byLower[name.lowercased()] = name
+        }
+
         for name in dataController.items.map(\.repository.nameWithOwner) {
             byLower[name.lowercased()] = name
         }
@@ -125,14 +129,7 @@ struct RootView: View {
             return false
         }
 
-        return filtered.sorted { lhs, rhs in
-            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-            if lhs.repository.nameWithOwner != rhs.repository.nameWithOwner {
-                return lhs.repository.nameWithOwner.localizedCaseInsensitiveCompare(rhs.repository.nameWithOwner) == .orderedAscending
-            }
-            if lhs.number != rhs.number { return lhs.number > rhs.number }
-            return lhs.id < rhs.id
-        }
+        return filtered
     }
 
     private var sizingItemCount: Int {

@@ -143,16 +143,16 @@ PRDeckUITests/                   # UI tests
 
 ## Contributing
 
-See `CONTRIBUTING.md`.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Security
 
-See `SECURITY.md`.
+See [`SECURITY.md`](SECURITY.md).
 
 ## Code of Conduct
 
-See `CODE_OF_CONDUCT.md`.
+See [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).
 
 ## License
 
-See `LICENSE`.
+See [`LICENSE`](LICENSE).

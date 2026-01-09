@@ -24,12 +24,12 @@ swift test --package-path PRDeckPackage
 
 ## Filing issues
 
-- Bugs: use the bug report template and include steps to reproduce + logs if possible.
-- Feature requests: use the feature request template and describe the workflow you’re trying to improve.
+- Bugs: use the [bug report template](.github/ISSUE_TEMPLATE/bug_report.yml) and include steps to reproduce + logs if possible.
+- Feature requests: use the [feature request template](.github/ISSUE_TEMPLATE/feature_request.yml) and describe the workflow you’re trying to improve.
 
 ## Pull requests
 
 - Keep PRs focused (one change/feature per PR).
 - Include screenshots or a short screen recording for UI changes.
-- If you touch install/release bits, update `README.md` and/or `RELEASING.md`.
-- By participating, you agree to follow `CODE_OF_CONDUCT.md`.
+- If you touch install/release bits, update [`README.md`](README.md) and/or [`RELEASING.md`](RELEASING.md).
+- By participating, you agree to follow [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).

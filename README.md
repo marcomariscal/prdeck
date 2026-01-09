@@ -141,11 +141,6 @@ PRDeckPackage/Sources/PRDeckFeature/  # Primary feature code
 PRDeckUITests/                   # UI tests
 ```
 
-## Roadmap (ideas)
-
-- [ ] DMG distribution (in addition to zip; signed + notarized; nicer “drag to /Applications” flow)
-- [ ] Publish cask to `homebrew-cask` (no custom tap)
-
 ## Contributing
 
 See `CONTRIBUTING.md`.

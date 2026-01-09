@@ -9,8 +9,8 @@
 PRODUCT_NAME = PRDeck
 PRODUCT_DISPLAY_NAME = PRDeck
 PRODUCT_BUNDLE_IDENTIFIER = com.marco.PRDeck
-MARKETING_VERSION = 0.1.1
-CURRENT_PROJECT_VERSION = 1
+MARKETING_VERSION = 0.1.2
+CURRENT_PROJECT_VERSION = 2
 
 // ==========================================
 // Platform Configuration
